@@ -1,23 +1,25 @@
 import { NextResponse } from "next/server";
+import { getOusCredentials } from "@/lib/aholo/upload";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const response = await fetch(
-      "https://api.aholo3d.cn/world/v1/asset/token",
-      {
-        method: "GET",
-        headers: {
-          Authorization: process.env.AHOLO_API_KEY || "",
-        },
-      }
-    );
-
-    const data = await response.json();
-
-    return NextResponse.json(data);
+    const credentials = await getOusCredentials();
+    return NextResponse.json({
+      ok: true,
+      message: "Aholo API key and OUS token OK (Quick Start step 1)",
+      globalDomain: credentials.globalDomain,
+      blockSize: credentials.blockSize,
+      hasOusToken: Boolean(credentials.ousToken),
+      diagnostics: "/api/aholo/diagnostics",
+    });
   } catch (error) {
     return NextResponse.json(
-      { error: "Something failed" },
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

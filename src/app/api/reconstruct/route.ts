@@ -1,44 +1,87 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { MIN_RECONSTRUCTION_IMAGES } from "@/lib/aholo/config";
+import { uploadFileToOus } from "@/lib/aholo/upload";
+import { createReconstruction } from "@/lib/aholo/world";
 
-export async function POST(req: NextRequest) {
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+export async function POST(req: Request) {
   try {
     const formData = await req.formData();
-
     const files = formData.getAll("files") as File[];
 
     if (!files.length) {
+      return NextResponse.json({ error: "No files received" }, { status: 400 });
+    }
+
+    if (files.length < MIN_RECONSTRUCTION_IMAGES) {
       return NextResponse.json(
-        { error: "No files uploaded" },
+        {
+          error: `At least ${MIN_RECONSTRUCTION_IMAGES} images are required for reconstruction`,
+          imageCount: files.length,
+        },
         { status: 400 }
       );
     }
 
-    // STEP 1 — GET OUS TOKEN
+    const scene =
+      (formData.get("scene") as "model" | "space" | null) ?? "space";
+    const taskQuality =
+      (formData.get("taskQuality") as "low" | "normal" | "high" | null) ??
+      "normal";
+    const name = (formData.get("name") as string | null) ?? undefined;
 
-    const tokenResponse = await fetch(
-      "https://api.aholo3d.cn/world/v1/asset/token",
-      {
-        headers: {
-          Authorization: process.env.AHOLO_API_KEY || "",
-        },
+    const uploads = files.map((file, index) => {
+      const mime = file.type.toLowerCase();
+      if (mime && !mime.startsWith("image/")) {
+        throw new Error(
+          `File "${file.name}" is not an image (${mime || "unknown type"})`
+        );
       }
-    );
+      const ext = file.name.includes(".")
+        ? file.name.slice(file.name.lastIndexOf("."))
+        : ".jpg";
+      return {
+        index,
+        file,
+        filename: `frame_${String(index).padStart(5, "0")}${ext}`,
+      };
+    });
 
-    const tokenData = await tokenResponse.json();
+    const urls: string[] = [];
+    for (const item of uploads) {
+      const bytes = await item.file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      if (buffer.length < 1024) {
+        throw new Error(
+          `File "${item.file.name}" is too small — use real JPEG/PNG photos`
+        );
+      }
+      urls.push(await uploadFileToOus(buffer, item.filename));
+    }
 
-    console.log("TOKEN DATA:", tokenData);
+    const { worldId } = await createReconstruction({
+      name,
+      scene,
+      taskQuality,
+      cover: urls[0],
+      resources: urls.map((url) => ({ url, type: "image" as const })),
+    });
 
     return NextResponse.json({
       success: true,
-      uploadedFiles: files.length,
-      tokenData,
+      worldId,
+      imageCount: files.length,
+      status: "PENDING",
     });
-
-  } catch (error) {
-    console.error(error);
-
+  } catch (err) {
+    console.error("RECONSTRUCTION ERROR:", err);
     return NextResponse.json(
-      { error: "Something failed" },
+      {
+        error: "Reconstruction failed",
+        details: err instanceof Error ? err.message : String(err),
+      },
       { status: 500 }
     );
   }

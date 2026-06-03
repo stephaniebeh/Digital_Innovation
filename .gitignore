@@ -20,6 +20,16 @@
 # production
 /build
 
+# COLMAP raw exports (large; scenes are copied to public/scenes)
+/desk1/
+/desk2/
+/desk3/
+/uploads/
+
+# editor / local docs
+.vscode/
+aholo api.pdf
+
 # misc
 .DS_Store
 *.pem
@@ -32,6 +42,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
