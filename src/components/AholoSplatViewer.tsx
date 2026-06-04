@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
-import { clearViewerHost, safeDisposeViewer } from "@/lib/viewer-host";
+import {
+  SPLAT_SCENE_LOAD_OPTIONS,
+  SPLAT_VIEWER_OPTIONS,
+} from "@/lib/splat-viewer-config";
+import { autoFrameSplatViewer } from "@/lib/splat-viewer-utils";
+import {
+  clearViewerHost,
+  syncViewerCanvasSize,
+  teardownSplatViewer,
+  waitForHostLayout,
+} from "@/lib/viewer-host";
 
 type Props = {
   modelUrl: string;
@@ -32,7 +42,11 @@ export default function AholoSplatViewer({
     onLoadErrorRef.current?.(null);
 
     async function init() {
-      const { Viewer, SceneFormat } = await import(
+      const host = hostRef.current;
+      if (!host) return;
+      await waitForHostLayout(host);
+
+      const { Viewer, SceneFormat, SceneRevealMode } = await import(
         "@mkkellogg/gaussian-splats-3d"
       );
 
@@ -42,26 +56,24 @@ export default function AholoSplatViewer({
 
       viewer = new Viewer({
         rootElement: hostRef.current,
-        cameraUp: [0, 1, 0],
-        initialCameraPosition: [0, 1.5, 4],
-        initialCameraLookAt: [0, 0.4, 0],
-        sharedMemoryForWorkers: false,
+        ...SPLAT_VIEWER_OPTIONS,
+        sceneRevealMode: SceneRevealMode.Instant,
       });
 
       await viewer.addSplatScene(modelUrl, {
+        ...SPLAT_SCENE_LOAD_OPTIONS,
         format: sceneFormat,
-        splatAlphaRemovalThreshold: 5,
-        showLoadingUI: false,
-        progressiveLoad: true,
       });
 
       if (cancelled) {
-        safeDisposeViewer(viewer);
+        teardownSplatViewer(viewer);
         viewer = null;
         return;
       }
 
       viewer.start();
+      syncViewerCanvasSize(viewer, host);
+      autoFrameSplatViewer(viewer, host);
       setLoading(false);
       onLoadErrorRef.current?.(null);
     }
@@ -79,7 +91,7 @@ export default function AholoSplatViewer({
 
     return () => {
       cancelled = true;
-      safeDisposeViewer(viewer);
+      teardownSplatViewer(viewer);
       viewer = null;
       clearViewerHost(host);
     };
@@ -88,7 +100,7 @@ export default function AholoSplatViewer({
   return (
     <div className="absolute inset-0 bg-zinc-950">
       {/* React must not render children inside host — splat library owns that DOM */}
-      <div ref={hostRef} className="absolute inset-0" />
+      <div ref={hostRef} className="splat-viewer-layer absolute inset-0 w-full h-full" />
       {loading && (
         <p className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500 pointer-events-none z-10">
           Loading 3D reconstruction…

@@ -1,17 +1,17 @@
 export type AholoModelFormat = "ply" | "spz";
 
-/** Prefer PLY for the web viewer; fall back to SPZ. */
+/** Prefer SPZ (Aholo’s compressed export), then PLY. */
 export function pickAholoModelUrl(result: {
   modelUrl?: string | null;
   plyPath?: string;
   spzPath?: string;
   lodMetaPath?: string;
 }): { url: string; format: AholoModelFormat } {
-  if (result.plyPath) {
-    return { url: result.plyPath, format: "ply" };
-  }
   if (result.spzPath) {
     return { url: result.spzPath, format: "spz" };
+  }
+  if (result.plyPath) {
+    return { url: result.plyPath, format: "ply" };
   }
   const fallback = result.modelUrl;
   if (fallback) {

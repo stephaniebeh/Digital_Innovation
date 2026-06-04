@@ -1,73 +1,56 @@
-# Scene files for the demo
+# Scene files for the desk demo
 
-## Why the old view looked like a blur
+The desk demo shows **3D Gaussian splats** (`scene-splat.spz` or `scene-splat.ply`) built from your desk photo sets via **Aholo** — no PostShot required.
 
-`meshed-poisson.ply` is a **solid mesh** from COLMAP. We were drawing **two semi-transparent meshes on top of each other**, which looks like a muddy blob.
+| Desk | Source photos | Output |
+|------|---------------|--------|
+| **desk1** | `desk1/desk1 images/` (preferred) or `desk1/dense/0/images/` | `public/scenes/desk1/scene-splat.{spz\|ply}` |
+| **desk2** | `desk2/desk2 images/` (preferred) or `desk2/dense/0/images/` | `public/scenes/desk2/scene-splat.{spz\|ply}` |
 
-The app now uses **`fused.ply`** (dense **point cloud**) by default — sharper for COLMAP data.
+### Why Aholo’s website can look sharper than this demo
 
-For **Aholo-like** clarity you need **3D Gaussian splats**, not COLMAP mesh/PLY.
+- **Training set:** An older bake used only **24** images and `taskQuality: normal`. Using **all** photos in `desk1 images` / `desk2 images` (like Aholo’s web UI) is the biggest quality win.
+- **Re-bake:** `npm run bake-splats` uploads **every photo** in `desk1/desk1 images` and `desk2/desk2 images` with **`taskQuality: high`**, and prefers **SPZ** when Aholo provides it.
+- **Viewer:** The demo uses `@mkkellogg/gaussian-splats-3d` with antialiasing and alpha cleanup (`splatAlphaRemovalThreshold` 28). Floaters (“blob” splats) are often weak Gaussians in the file itself; re-baking with more images helps more than viewer tweaks alone.
 
----
-
-## What you already have
-
-| Desk | File | What it is |
-|------|------|------------|
-| **desk1** | `desk1/untitled.psht` (~374 MB) | **PostShot 3DGS project** — export this for splat quality |
-| **desk1** | `desk1/dense/0/fused.ply` | COLMAP point cloud → copied to `public/scenes/desk1/scene.ply` |
-| **desk1** | `desk1/dense/0/meshed-poisson.ply` | COLMAP mesh (not used in viewer anymore) |
-| **desk1** | `desk1/dense/0/images/*.jpg` | Source photos (hotspots) |
-| **desk2** | `desk2/dense/0/fused.ply` | Point cloud → `public/scenes/desk2/scene.ply` |
-| **desk2** | (no `.psht`) | Train/export splats in PostShot if you want matching quality |
+`scene.ply` (COLMAP point cloud) is optional — used only for **auto-align** in the align panel.
 
 ---
 
-## Aholo-like quality (3D Gaussian splats)
+## Generate splats (recommended)
 
-### 1. Export from PostShot (desk1)
+1. Add `AHOLO_API_KEY` to `.env.local` (from [Aholo Labs](https://labs.aholo3d.cn/api-keys)).
+2. From the repo root:
 
-You already trained **desk1** as `untitled.psht`. In PostShot:
+```powershell
+npm install
+npm run bake-splats
+```
 
-- **GUI:** File → **Export Splat Model** → save as PLY  
-- **CLI:**
-  ```powershell
-  & "$env:ProgramFiles\Jawset Postshot\bin\postshot-cli.exe" export `
-    --input "C:\Users\steph\afterimage-prototype\desk1\untitled.psht" `
-    --output "C:\Users\steph\afterimage-prototype\public\scenes\desk1\scene-splat.ply" `
-    --format ply
-  ```
+This uploads **all** images per desk (high quality), runs Aholo reconstruction (can take a long time with 200+ photos), and saves **SPZ or PLY**. One desk only:
 
-Copy the export to:
+```powershell
+npm run bake-splat:desk1
+npm run bake-splat:desk2
+```
 
-`public/scenes/desk1/scene-splat.ply`
+Quick test with fewer photos: `npx tsx scripts/bake-desk-splats.ts desk1 --images 40`
 
-### 2. desk2
+### Match a reconstruction you already made in the app
 
-Run PostShot on `desk2/dense/0/images` (or your image folder), export the same way to:
+If **Reconstruct with Aholo** looked good, copy the `worldId` from the viewer and save that exact model into the desk demo (no re-upload):
 
-`public/scenes/desk2/scene-splat.ply`
+```powershell
+npx tsx scripts/save-desk-splat-from-world.ts desk1 YOUR_WORLD_ID
+```
 
-### 3. Reload the site
-
-If **both** `scene-splat.ply` files exist, the viewer switches to **“3D Gaussian splat”** mode automatically.
+Hard-refresh the browser after saving.
 
 ---
 
-## COLMAP refresh (point cloud mode)
+## Optional: COLMAP align files
 
 ```powershell
 Copy-Item desk1\dense\0\fused.ply public\scenes\desk1\scene.ply -Force
 Copy-Item desk2\dense\0\fused.ply public\scenes\desk2\scene.ply -Force
 ```
-
----
-
-## Summary
-
-| Goal | File to add |
-|------|-------------|
-| Clear enough for prototype (now) | `scene.ply` from `fused.ply` ✓ |
-| Aholo / splat look | `scene-splat.ply` from PostShot `.psht` export |
-
-COLMAP alone cannot match Aholo splats without a **3DGS training step** (PostShot, Aholo API, Nerfstudio, etc.).

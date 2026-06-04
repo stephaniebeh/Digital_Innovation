@@ -25,7 +25,7 @@ export { pickAholoModelUrl, proxyModelUrl, probeProxiedModel } from "./model-url
 export type { AholoModelFormat } from "./model-url";
 
 export async function startReconstruction(
-  files: FileList,
+  files: FileList | File[],
   options?: {
     name?: string;
     scene?: "model" | "space";
@@ -33,8 +33,9 @@ export async function startReconstruction(
   }
 ): Promise<{ worldId: string; imageCount: number }> {
   const form = new FormData();
-  for (let i = 0; i < files.length; i++) {
-    form.append("files", files[i]);
+  const list = Array.isArray(files) ? files : Array.from(files);
+  for (const file of list) {
+    form.append("files", file);
   }
   if (options?.name) form.append("name", options.name);
   form.append("scene", options?.scene ?? "space");

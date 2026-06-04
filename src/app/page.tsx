@@ -1,7 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type InputHTMLAttributes,
+} from "react";
 import AlignmentEditor from "@/components/AlignmentEditor";
 import MemoryTimeline from "@/components/MemoryTimeline";
 import ReconstructionLoader from "@/components/ReconstructionLoader";
@@ -14,11 +21,11 @@ import {
 } from "@/lib/aholo/client";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import {
+  defaultSplatAlignment,
   loadAlignment,
   saveAlignment,
   type GizmoMode,
   type SceneId,
-  type SceneTransform,
 } from "@/lib/scene-alignment";
 import {
   RECONSTRUCTION_STAGES,
@@ -26,6 +33,7 @@ import {
   blendForTimelinePosition,
   yearAtTimelinePosition,
 } from "@/lib/demo-scenes";
+import { imageFilesFromFileList } from "@/lib/image-file-picker";
 
 const SceneViewer = dynamic(() => import("@/components/SceneViewer"), {
   ssr: false,
@@ -51,7 +59,7 @@ function stageIndexForStatus(status: string | null, uploading: boolean): number 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("landing");
   const [viewerSource, setViewerSource] = useState<ViewerSource>("demo");
-  const [files, setFiles] = useState<FileList | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [loadStage, setLoadStage] = useState(0);
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStatusLine, setLoadStatusLine] = useState<string | null>(null);
@@ -75,24 +83,22 @@ export default function Home() {
     setAlignmentSilent,
     beginEditStep,
     endEditStep,
-    beginGizmoDrag,
     undo: undoAlignment,
     canUndo,
   } = useAlignmentHistory(loadAlignment());
-
-  const handleGizmoTransformChange = useCallback(
-    (id: SceneId, transform: SceneTransform) => {
-      setAlignmentSilent((prev) => ({ ...prev, [id]: transform }));
-    },
-    [setAlignmentSilent]
-  );
 
   useEffect(() => {
     saveAlignment(alignment);
   }, [alignment]);
 
-  const fileCount = files?.length ?? 0;
+  const fileCount = selectedImages.length;
   const hasEnoughImages = fileCount >= MIN_RECONSTRUCTION_IMAGES;
+  const imagesNeeded = Math.max(0, MIN_RECONSTRUCTION_IMAGES - fileCount);
+
+  const applyPickedImages = useCallback((list: FileList | null) => {
+    setSelectedImages(imageFilesFromFileList(list));
+    setLoadError(null);
+  }, []);
 
   const primary = TIMELINE_MOMENTS[0];
   const secondary = TIMELINE_MOMENTS[TIMELINE_MOMENTS.length - 1] ?? primary;
@@ -113,8 +119,9 @@ export default function Home() {
     setLoadError(null);
     setLoadStatusLine(null);
     setTimelinePos(0);
+    setAlignmentSilent(defaultSplatAlignment());
     setPhase("viewing");
-  }, []);
+  }, [setAlignmentSilent]);
 
   const returnToLanding = useCallback(() => {
     pollAbortRef.current = true;
@@ -127,10 +134,13 @@ export default function Home() {
   }, []);
 
   const startRealReconstruction = useCallback(async () => {
-    if (!files?.length) return;
+    if (!selectedImages.length) {
+      setLoadError("Select photos first, then start reconstruction.");
+      return;
+    }
     if (!hasEnoughImages) {
       setLoadError(
-        `Select at least ${MIN_RECONSTRUCTION_IMAGES} images for Aholo reconstruction`
+        `Select at least ${MIN_RECONSTRUCTION_IMAGES} images (${imagesNeeded} more needed). Aholo requires 20+ photos per job.`
       );
       return;
     }
@@ -148,10 +158,10 @@ export default function Home() {
       setLoadStatusLine("Uploading images to Aholo…");
       setLoadProgress(0.15);
 
-      const { worldId, imageCount } = await startReconstruction(files, {
+      const { worldId, imageCount } = await startReconstruction(selectedImages, {
         name: "Afterimage capture",
         scene: "space",
-        taskQuality: "normal",
+        taskQuality: "high",
       });
 
       if (pollAbortRef.current) return;
@@ -184,7 +194,7 @@ export default function Home() {
       setLoadError(message);
       setLoadProgress(0);
     }
-  }, [files, hasEnoughImages]);
+  }, [selectedImages, hasEnoughImages, imagesNeeded]);
 
   const resumeExistingWorld = useCallback(async () => {
     const id = resumeWorldId.trim();
@@ -226,9 +236,9 @@ export default function Home() {
       return "Aholo reconstruction · drag to orbit · scroll to zoom";
     }
     if (alignOpen) {
-      return "Align mode · gumball · 1/2/3 modes · Ctrl+Z undo · overlay both to compare";
+      return "Align mode · sliders · auto-align uses COLMAP scene.ply · Ctrl+Z undo · overlay both";
     }
-    return "Timeline · drag orbit · right-drag pan · scroll zoom · double-click reset view";
+    return "Timeline · left = 2020 desk · right = 2026 desk · drag to orbit · scroll zoom";
   }, [viewing, alignOpen, viewerSource]);
 
   const showAlignTools = viewing && viewerSource === "demo";
@@ -258,24 +268,41 @@ export default function Home() {
             <label className="block text-sm text-zinc-400">
               Upload photographs (Aholo API)
             </label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => {
-                setFiles(e.target.files);
-                setLoadError(null);
-              }}
-              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white file:text-black file:font-medium"
-            />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    applyPickedImages(e.target.files);
+                    e.target.value = "";
+                  }}
+                  className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white file:text-black file:font-medium cursor-pointer"
+                />
+              </label>
+              <label className="shrink-0 cursor-pointer py-2 px-4 rounded-lg border border-white/15 text-xs text-zinc-300 hover:text-white hover:border-white/30 text-center">
+                Select folder
+                <input
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    applyPickedImages(e.target.files);
+                    e.target.value = "";
+                  }}
+                  {...({ webkitdirectory: "", directory: "" } as InputHTMLAttributes<HTMLInputElement>)}
+                />
+              </label>
+            </div>
             <p className="text-xs text-zinc-500">
               {fileCount > 0
                 ? `${fileCount} image${fileCount === 1 ? "" : "s"} selected${
                     hasEnoughImages
                       ? " — ready for reconstruction"
-                      : ` — need ${MIN_RECONSTRUCTION_IMAGES - fileCount} more for Aholo`
+                      : ` — need ${imagesNeeded} more (Aholo minimum is ${MIN_RECONSTRUCTION_IMAGES})`
                   }`
-                : `At least ${MIN_RECONSTRUCTION_IMAGES} images required for API reconstruction`}
+                : `Pick at least ${MIN_RECONSTRUCTION_IMAGES} photos (use Select folder for a whole shoot)`}
             </p>
             {loadError && !loading && (
               <p className="text-xs text-red-400/90">{loadError}</p>
@@ -284,9 +311,20 @@ export default function Home() {
               type="button"
               onClick={() => void startRealReconstruction()}
               disabled={!hasEnoughImages}
+              title={
+                hasEnoughImages
+                  ? undefined
+                  : fileCount === 0
+                    ? `Select at least ${MIN_RECONSTRUCTION_IMAGES} images`
+                    : `Select ${imagesNeeded} more image${imagesNeeded === 1 ? "" : "s"} (${fileCount}/${MIN_RECONSTRUCTION_IMAGES})`
+              }
               className="w-full py-3 rounded-xl bg-amber-100 text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-colors"
             >
-              Reconstruct with Aholo
+              {hasEnoughImages
+                ? "Reconstruct with Aholo"
+                : fileCount === 0
+                  ? `Reconstruct with Aholo (${MIN_RECONSTRUCTION_IMAGES}+ photos)`
+                  : `Need ${imagesNeeded} more photo${imagesNeeded === 1 ? "" : "s"} (${fileCount}/${MIN_RECONSTRUCTION_IMAGES})`}
             </button>
             <p className="text-[10px] text-zinc-600 text-center">
               Requires <code className="text-zinc-500">AHOLO_API_KEY</code> in{" "}
@@ -317,9 +355,9 @@ export default function Home() {
           </section>
 
           <p className="text-[11px] text-zinc-600 max-w-sm">
-            Demo skip (bottom left) loads COLMAP desk scenes from{" "}
-            <code className="text-zinc-500">public/scenes/desk1</code> and{" "}
-            <code className="text-zinc-500">desk2</code>.
+            Demo skip (bottom left) loads 3D Gaussian splats for desk1 / desk2
+            from <code className="text-zinc-500">scene-splat.ply</code> in each
+            scene folder.
           </p>
         </main>
       )}
@@ -360,14 +398,8 @@ export default function Home() {
         <main className="flex-1 flex flex-col relative min-h-0 h-[100dvh]">
           <div className="absolute inset-0 bottom-28">
             <SceneViewer
-              primaryPointUrl={primary.pointCloudUrl}
-              secondaryPointUrl={secondary.pointCloudUrl}
-              primarySplatUrl={
-                viewerSource === "demo" ? primary.splatUrl : undefined
-              }
-              secondarySplatUrl={
-                viewerSource === "demo" ? secondary.splatUrl : undefined
-              }
+              primarySplatUrl={primary.splatUrl}
+              secondarySplatUrl={secondary.splatUrl}
               aholoSplatUrl={
                 viewerSource === "aholo" ? aholoSplatUrl : null
               }
@@ -378,12 +410,6 @@ export default function Home() {
               blend={blend}
               alignment={alignment}
               overlayBoth={showAlignTools && alignOpen && alignOverlay}
-              alignGizmoActive={showAlignTools && alignOpen}
-              editingScene={editingScene}
-              gizmoMode={gizmoMode}
-              onGizmoModeChange={setGizmoMode}
-              onGizmoTransformChange={handleGizmoTransformChange}
-              onGizmoDragStart={beginGizmoDrag}
             />
 
             {showAlignTools && (
@@ -401,8 +427,8 @@ export default function Home() {
                 onUndo={undoAlignment}
                 overlayBoth={alignOverlay}
                 onOverlayBothChange={setAlignOverlay}
-                desk1PointUrl={primary.pointCloudUrl}
-                desk2PointUrl={secondary.pointCloudUrl}
+                desk1PointUrl={primary.alignUrl}
+                desk2PointUrl={secondary.alignUrl}
                 gizmoMode={gizmoMode}
                 onGizmoModeChange={setGizmoMode}
               />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { clearViewerHost, safeDisposeViewer } from "@/lib/viewer-host";
+import { clearViewerHost, teardownSplatViewer } from "@/lib/viewer-host";
 
 type Props = {
   modelUrl: string;
@@ -46,7 +46,7 @@ export default function SplatViewer({ modelUrl }: Props) {
 
     return () => {
       cancelled = true;
-      safeDisposeViewer(viewer);
+      teardownSplatViewer(viewer);
       clearViewerHost(host);
     };
   }, [modelUrl]);

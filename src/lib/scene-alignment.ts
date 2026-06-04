@@ -55,6 +55,17 @@ export function defaultAlignment(): SceneAlignmentState {
   };
 }
 
+/** Aholo / 3DGS splats are already Y-up — no COLMAP −90° tilt on the viewer */
+export function defaultSplatAlignment(): SceneAlignmentState {
+  const base: SceneTransform = {
+    ...DEFAULT_TRANSFORM,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+  };
+  return { desk1: { ...base }, desk2: { ...base } };
+}
+
 export function loadAlignment(): SceneAlignmentState {
   if (typeof window === "undefined") return defaultAlignment();
   try {

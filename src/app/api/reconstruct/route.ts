@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       (formData.get("scene") as "model" | "space" | null) ?? "space";
     const taskQuality =
       (formData.get("taskQuality") as "low" | "normal" | "high" | null) ??
-      "normal";
+      "high";
     const name = (formData.get("name") as string | null) ?? undefined;
 
     const uploads = files.map((file, index) => {

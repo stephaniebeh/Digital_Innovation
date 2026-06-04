@@ -16,6 +16,11 @@ if (-not (Test-Path $input)) {
   exit 1
 }
 
-& $cli export --input $input --output $output --format ply
-Write-Host "Exported splat PLY to $output"
+& $cli export $input --export-splat $output
+if (-not (Test-Path $output)) {
+  Write-Error "Export did not create $output"
+  exit 1
+}
+$mb = [math]::Round((Get-Item $output).Length / 1MB, 1)
+Write-Host ('Exported splat PLY ({0} MB) to {1}' -f $mb, $output)
 Write-Host "Restart npm run dev and reload the site."
