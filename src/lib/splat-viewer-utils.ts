@@ -125,6 +125,8 @@ export function applyTimelineLayerBlend(
   const iHigh = Math.min(n - 1, iLow + 1);
   const frac = pos - iLow;
 
+  const crossfading = iLow !== iHigh;
+
   for (let k = 0; k < n; k++) {
     let opacity = 0;
     if (iLow === iHigh) {
@@ -136,13 +138,15 @@ export function applyTimelineLayerBlend(
     }
 
     const el = layers[k];
-    if (opacity <= 0.001) {
+    const inCrossfade = crossfading && (k === iLow || k === iHigh);
+
+    if (opacity <= 0.001 && !inCrossfade) {
       el.style.display = "none";
       el.style.opacity = "0";
       el.style.pointerEvents = "none";
     } else {
       el.style.display = "block";
-      el.style.opacity = String(opacity);
+      el.style.opacity = String(Math.max(opacity, 0));
       el.style.pointerEvents = opacity >= 0.5 ? "auto" : "none";
     }
   }

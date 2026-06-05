@@ -13,6 +13,7 @@ import { configureSplatViewerOrbit } from "@/lib/viewer-controls";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 import { requestViewerRender } from "@/lib/splat-viewer-api";
 import {
+  blurTimelineRangeIfFocused,
   clearViewerHost,
   syncViewerCanvasSize,
   teardownSplatViewer,
@@ -137,7 +138,10 @@ export default function AholoSplatViewer({
   }, [modelUrl, format, label]);
 
   return (
-    <div className="absolute inset-0 bg-zinc-950">
+    <div
+      className="absolute inset-0 bg-zinc-950"
+      onPointerDown={blurTimelineRangeIfFocused}
+    >
       <div ref={hostRef} className="splat-viewer-layer absolute inset-0 w-full h-full" />
       {loading && (
         <p className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500 pointer-events-none z-10">

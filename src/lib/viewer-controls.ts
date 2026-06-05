@@ -11,18 +11,28 @@ type SplatViewerControls = {
   orthographicControls?: ViewerOrbitControls | null;
 };
 
-function enableZoomToCursor(controls: ViewerOrbitControls | null | undefined): void {
+/** Tiny offset from the poles avoids a singularity; still allows full vertical orbit. */
+const ORBIT_POLE_MARGIN = 0.001;
+
+function configureSplatControlInstance(
+  controls: ViewerOrbitControls | null | undefined
+): void {
   if (!controls) return;
   controls.zoomToCursor = true;
+  // Library defaults cap overhead orbit at ~135° (Math.PI * 0.75).
+  controls.minPolarAngle = ORBIT_POLE_MARGIN;
+  controls.maxPolarAngle = Math.PI - ORBIT_POLE_MARGIN;
+  controls.minAzimuthAngle = -Infinity;
+  controls.maxAzimuthAngle = Infinity;
   controls.update();
 }
 
-/** Scroll zooms toward the pointer (OrbitControls zoomToCursor). */
+/** Pointer zoom + unrestricted orbit on splat viewers. */
 export function configureSplatViewerOrbit(viewer: SplatViewer): void {
   const v = viewer as SplatViewerControls;
-  enableZoomToCursor(v.perspectiveControls);
-  enableZoomToCursor(v.orthographicControls);
-  enableZoomToCursor(v.controls);
+  configureSplatControlInstance(v.perspectiveControls);
+  configureSplatControlInstance(v.orthographicControls);
+  configureSplatControlInstance(v.controls);
 }
 
 /** Orbit + pan setup similar to desktop 3D viewers (avoids pole lock at top/bottom). */
@@ -44,9 +54,10 @@ export function configureExplorationControls(
   controls.minDistance = 0.05;
   controls.maxDistance = 800;
 
-  // Stay slightly off the poles so orbit does not "stick" (gimbal lock).
-  controls.minPolarAngle = 0.12;
-  controls.maxPolarAngle = Math.PI - 0.12;
+  controls.minPolarAngle = ORBIT_POLE_MARGIN;
+  controls.maxPolarAngle = Math.PI - ORBIT_POLE_MARGIN;
+  controls.minAzimuthAngle = -Infinity;
+  controls.maxAzimuthAngle = Infinity;
 
   controls.mouseButtons = {
     LEFT: THREE.MOUSE.ROTATE,

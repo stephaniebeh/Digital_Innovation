@@ -5,12 +5,14 @@ import {
   defaultCropFromScene,
   useSplatEditorBinding,
 } from "@/hooks/useSplatEditorBinding";
+import { resolveSplatEdit } from "@/lib/splat-editor/load-edit";
 import {
   downloadSplatEditJson,
-  loadSplatEdit,
   saveSplatEditLocal,
   saveSplatEditToServer,
 } from "@/lib/splat-editor/persistence";
+import { clearSelectionHighlight } from "@/lib/splat-editor/selection-highlight";
+import { restoreDeletedSplatIndices } from "@/lib/splat-editor/splat-colors";
 import {
   DEFAULT_TRANSFORM,
   deskIdFromSceneKey,
@@ -48,20 +50,26 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
       setEdit(null);
       return;
     }
-    const saved = loadSplatEdit(handle.sceneKey);
-    setEdit(
-      saved ?? {
-        version: 1,
-        sceneKey: handle.sceneKey,
-        label: handle.label,
-        transform: { ...DEFAULT_TRANSFORM },
-        crop: null,
-        updatedAt: new Date().toISOString(),
-      }
-    );
-    setTool("select");
-    setSaveStatus(null);
-    setSaveError(null);
+    let cancelled = false;
+    void resolveSplatEdit(handle.sceneKey).then((saved) => {
+      if (cancelled) return;
+      setEdit(
+        saved ?? {
+          version: 1,
+          sceneKey: handle.sceneKey,
+          label: handle.label,
+          transform: { ...DEFAULT_TRANSFORM },
+          crop: null,
+          updatedAt: new Date().toISOString(),
+        }
+      );
+      setTool("select");
+      setSaveStatus(null);
+      setSaveError(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [handle?.sceneKey, handle?.label]);
 
   const patchEdit = useCallback((patch: Partial<SplatSceneEdit>) => {
@@ -93,8 +101,60 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
     enabled: open && !!edit && !!handle,
   });
 
+  const deletedCount = edit?.deletedSplatIndices?.length ?? 0;
+
   const resetTransform = () => {
     patchEdit({ transform: { ...DEFAULT_TRANSFORM }, crop: null });
+  };
+
+  const restoreDeletedSplats = () => {
+    if (!handle || !edit?.deletedSplatIndices?.length) return;
+    const count = edit.deletedSplatIndices.length;
+    if (
+      !window.confirm(
+        `Restore ${count.toLocaleString()} deleted splat${count === 1 ? "" : "s"}? Save afterward to keep this change.`
+      )
+    ) {
+      return;
+    }
+    const viewer = handle.getViewer();
+    restoreDeletedSplatIndices(viewer, edit.deletedSplatIndices);
+    clearSelectionHighlight(viewer);
+    patchEdit({ deletedSplatIndices: [] });
+    setSaveError(null);
+    setSaveStatus(
+      `Restored ${count.toLocaleString()} splat${count === 1 ? "" : "s"} — click Save to keep`
+    );
+  };
+
+  const resetAllEdits = () => {
+    if (!handle || !edit) return;
+    const hasDeletes = (edit.deletedSplatIndices?.length ?? 0) > 0;
+    const hasTransform =
+      JSON.stringify(edit.transform) !== JSON.stringify(DEFAULT_TRANSFORM);
+    const hasCrop = edit.crop !== null;
+    if (!hasDeletes && !hasTransform && !hasCrop) return;
+
+    if (
+      !window.confirm(
+        "Reset all edits? This restores deleted splats and clears move, rotate, scale, and crop."
+      )
+    ) {
+      return;
+    }
+
+    if (hasDeletes) {
+      restoreDeletedSplatIndices(handle.getViewer(), edit.deletedSplatIndices);
+      clearSelectionHighlight(handle.getViewer());
+    }
+
+    patchEdit({
+      transform: { ...DEFAULT_TRANSFORM },
+      crop: null,
+      deletedSplatIndices: [],
+    });
+    setSaveError(null);
+    setSaveStatus("Scene reset — click Save to keep");
   };
 
   const saveChanges = async () => {
@@ -163,6 +223,12 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
           <p className="leading-snug">
             {TOOLS.find((t) => t.id === tool)?.hint}
           </p>
+          {deletedCount > 0 && (
+            <p className="text-amber-200/80 text-[10px]">
+              {deletedCount.toLocaleString()} splat
+              {deletedCount === 1 ? "" : "s"} hidden by delete
+            </p>
+          )}
           {edit?.crop && tool === "crop" && (
             <p className="text-zinc-600 font-mono text-[10px] leading-relaxed">
               crop min [{edit.crop.min.map((n) => n.toFixed(2)).join(", ")}]
@@ -189,11 +255,27 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
           </button>
           <button
             type="button"
+            disabled={!handle || deletedCount === 0}
+            onClick={restoreDeletedSplats}
+            className="w-full py-1.5 rounded-lg border border-amber-200/25 text-amber-100/90 text-xs hover:bg-amber-950/40 disabled:opacity-40"
+          >
+            Restore deleted splats
+          </button>
+          <button
+            type="button"
             disabled={!handle}
-            onClick={resetTransform}
+            onClick={resetAllEdits}
             className="w-full py-1.5 rounded-lg border border-white/10 text-zinc-400 text-xs hover:text-white"
           >
-            Reset transform
+            Reset scene
+          </button>
+          <button
+            type="button"
+            disabled={!handle}
+            onClick={resetTransform}
+            className="w-full py-1.5 rounded-lg border border-white/10 text-zinc-500 text-xs hover:text-white"
+          >
+            Reset transform only
           </button>
         </div>
       </aside>

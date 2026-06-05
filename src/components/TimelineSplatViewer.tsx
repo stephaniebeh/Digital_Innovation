@@ -26,6 +26,7 @@ import { resolveSplatEdit } from "@/lib/splat-editor/load-edit";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 import { requestViewerRender } from "@/lib/splat-viewer-api";
 import {
+  blurTimelineRangeIfFocused,
   clearViewerHost,
   syncViewerCanvasSize,
   teardownSplatViewer,
@@ -203,20 +204,28 @@ export default function TimelineSplatViewer({
     }
 
     async function init() {
-      const firstReady = layers.findIndex((l) => l.url && !l.missing);
-      if (firstReady >= 0) {
-        await loadLayer(firstReady);
-      }
+      const indicesToLoad = layers
+        .map((layer, index) => ({ layer, index }))
+        .filter(({ layer }) => layer.url && !layer.missing)
+        .map(({ index }) => index);
+
+      if (indicesToLoad.length === 0) return;
+
+      // Load every desk in parallel so crossfades work while scrubbing.
+      const loadPromises = indicesToLoad.map((index) => loadLayer(index));
+      await loadPromises[0];
       if (cancelled || gen !== initGenRef.current) return;
 
       setLoadPhase("ready");
-      setStatusLine("");
+      setStatusLine(
+        indicesToLoad.length > 1 ? "Loading remaining scenes…" : ""
+      );
       onLoadErrorRef.current?.(null);
       setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
 
-      for (let i = 0; i < layers.length; i++) {
-        if (i !== firstReady) void loadLayer(i);
-      }
+      await Promise.all(loadPromises);
+      if (cancelled || gen !== initGenRef.current) return;
+      setStatusLine("");
     }
 
     init().catch((err) => {
@@ -265,6 +274,13 @@ export default function TimelineSplatViewer({
     } else {
       applyTimelineLayerBlend(hosts, timelinePos, overlayAll);
       setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
+      for (let i = 0; i < viewersRef.current.length; i++) {
+        const viewer = viewersRef.current[i];
+        const host = hosts[i];
+        if (!viewer || !host) continue;
+        const opacity = Number.parseFloat(host.style.opacity);
+        if (opacity > 0.001) requestViewerRender(viewer);
+      }
     }
 
     if (alignMode) {
@@ -311,6 +327,7 @@ export default function TimelineSplatViewer({
       ref={rootRef}
       className="absolute inset-0 bg-zinc-950 splat-viewer-root"
       aria-label="3D memory space viewer"
+      onPointerDown={blurTimelineRangeIfFocused}
     >
       {layers.map((layer, i) => (
         <div

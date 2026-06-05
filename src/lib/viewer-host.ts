@@ -1,3 +1,11 @@
+/** Release focus from the memory timeline slider so arrow keys orbit the scene. */
+export function blurTimelineRangeIfFocused(): void {
+  const el = document.activeElement;
+  if (el instanceof HTMLInputElement && el.type === "range") {
+    el.blur();
+  }
+}
+
 /** Clear DOM nodes added by WebGL / splat viewers without fighting React. */
 export function clearViewerHost(element: HTMLElement | null): void {
   if (!element?.isConnected) return;

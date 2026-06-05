@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { TIMELINE_YEARS } from "@/lib/demo-scenes";
 
 type Props = {
@@ -7,7 +8,17 @@ type Props = {
   onChange: (t: number) => void;
 };
 
+function isArrowKey(key: string): boolean {
+  return (
+    key === "ArrowLeft" ||
+    key === "ArrowRight" ||
+    key === "ArrowUp" ||
+    key === "ArrowDown"
+  );
+}
+
 export default function MemoryTimeline({ position, onChange }: Props) {
+  const rangeRef = useRef<HTMLInputElement>(null);
   const min = TIMELINE_YEARS[0] ?? 2020;
   const max = TIMELINE_YEARS[TIMELINE_YEARS.length - 1] ?? 2026;
 
@@ -48,11 +59,20 @@ export default function MemoryTimeline({ position, onChange }: Props) {
             );
           })}
           <input
+            ref={rangeRef}
             type="range"
             min={0}
             max={1000}
             value={Math.round(position * 1000)}
+            tabIndex={-1}
             onChange={(e) => onChange(Number(e.target.value) / 1000)}
+            onKeyDown={(e) => {
+              if (!isArrowKey(e.key)) return;
+              // Arrow keys rotate the 3D view; don't nudge this slider too.
+              e.preventDefault();
+              rangeRef.current?.blur();
+            }}
+            onPointerUp={() => rangeRef.current?.blur()}
             className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
             aria-label="Scrub through time"
             aria-valuemin={min}
