@@ -9,6 +9,7 @@ function cloneAlignment(state: SceneAlignmentState): SceneAlignmentState {
   return {
     desk1: { ...state.desk1 },
     desk2: { ...state.desk2 },
+    desk3: { ...state.desk3 },
   };
 }
 

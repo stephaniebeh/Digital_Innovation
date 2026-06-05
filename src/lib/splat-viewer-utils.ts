@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { TIMELINE_CROSSFADE_HALF_WIDTH } from "./splat-viewer-config";
 import { syncViewerCanvasSize } from "./viewer-host";
 
 type SplatViewer = import("@mkkellogg/gaussian-splats-3d").Viewer;
@@ -73,52 +72,56 @@ export function autoFrameSplatViewer(
   forceRender(viewer);
 }
 
-/** Crossfade layers: A = desk1 (2020), B = desk2 (2026). Hidden layer uses display:none. */
-export function applyDeskLayerBlend(
-  layerA: HTMLElement,
-  layerB: HTMLElement,
-  blend: number,
-  overlayBoth: boolean
+/** Crossfade N timeline layers; t=0 → first scene, t=1 → last. */
+export function applyTimelineLayerBlend(
+  layers: HTMLElement[],
+  t: number,
+  overlayAll: boolean
 ): void {
-  const t = Math.max(0, Math.min(1, blend));
-  const low = 0.5 - TIMELINE_CROSSFADE_HALF_WIDTH;
-  const high = 0.5 + TIMELINE_CROSSFADE_HALF_WIDTH;
+  const n = layers.length;
+  if (n === 0) return;
 
-  if (overlayBoth) {
-    layerA.style.display = "block";
-    layerB.style.display = "block";
-    layerA.style.opacity = "1";
-    layerB.style.opacity = "1";
-    layerA.style.pointerEvents = "auto";
-    layerB.style.pointerEvents = "auto";
+  if (overlayAll) {
+    for (const el of layers) {
+      el.style.display = "block";
+      el.style.opacity = "1";
+      el.style.pointerEvents = "auto";
+    }
     return;
   }
 
-  if (t <= low) {
-    layerA.style.display = "block";
-    layerA.style.opacity = "1";
-    layerA.style.pointerEvents = "auto";
-    layerB.style.display = "none";
-    layerB.style.opacity = "0";
-    layerB.style.pointerEvents = "none";
+  if (n === 1) {
+    layers[0].style.display = "block";
+    layers[0].style.opacity = "1";
+    layers[0].style.pointerEvents = "auto";
     return;
   }
 
-  if (t >= high) {
-    layerB.style.display = "block";
-    layerB.style.opacity = "1";
-    layerB.style.pointerEvents = "auto";
-    layerA.style.display = "none";
-    layerA.style.opacity = "0";
-    layerA.style.pointerEvents = "none";
-    return;
-  }
+  const clamped = Math.max(0, Math.min(1, t));
+  const pos = clamped * (n - 1);
+  const iLow = Math.floor(pos);
+  const iHigh = Math.min(n - 1, iLow + 1);
+  const frac = pos - iLow;
 
-  const fadeT = (t - low) / (high - low);
-  layerA.style.display = "block";
-  layerB.style.display = "block";
-  layerA.style.opacity = String(1 - fadeT);
-  layerB.style.opacity = String(fadeT);
-  layerA.style.pointerEvents = fadeT < 0.5 ? "auto" : "none";
-  layerB.style.pointerEvents = fadeT >= 0.5 ? "auto" : "none";
+  for (let k = 0; k < n; k++) {
+    let opacity = 0;
+    if (iLow === iHigh) {
+      opacity = k === iLow ? 1 : 0;
+    } else if (k === iLow) {
+      opacity = 1 - frac;
+    } else if (k === iHigh) {
+      opacity = frac;
+    }
+
+    const el = layers[k];
+    if (opacity <= 0.001) {
+      el.style.display = "none";
+      el.style.opacity = "0";
+      el.style.pointerEvents = "none";
+    } else {
+      el.style.display = "block";
+      el.style.opacity = String(opacity);
+      el.style.pointerEvents = opacity >= 0.5 ? "auto" : "none";
+    }
+  }
 }

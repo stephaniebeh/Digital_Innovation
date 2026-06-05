@@ -24,27 +24,38 @@ export function alignPathForMoment(id: string): string {
   return `/scenes/${id}/${ALIGN_FILENAME}`;
 }
 
-/** Desk demo has two eras; timeline ends map 0 → desk1, 1 → desk2 */
-export const TIMELINE_YEARS = [2020, 2026] as const;
+/** Timeline slider endpoints (desk1 → desk3). */
+export const TIMELINE_YEARS = [2020, 2023, 2026] as const;
 
 export const TIMELINE_MOMENTS: TimelineMoment[] = [
   {
     id: "desk1",
     year: 2020,
     label: "2020",
-    splatUrl: "/scenes/desk1/scene-splat.ply",
-    alignUrl: "/scenes/desk1/scene.ply",
+    splatUrl: splatPathForMoment("desk1"),
+    alignUrl: alignPathForMoment("desk1"),
     photos: [
       { src: "/scenes/desk1/photo-01.jpg", caption: "Desk, winter light" },
       { src: "/scenes/desk1/photo-02.jpg", caption: "Corner detail" },
     ],
   },
   {
+    id: "desk3",
+    year: 2023,
+    label: "2023",
+    splatUrl: splatPathForMoment("desk3"),
+    alignUrl: alignPathForMoment("desk3"),
+    photos: [
+      { src: "/scenes/desk3/photo-01.jpg", caption: "Desk, middle era" },
+      { src: "/scenes/desk3/photo-02.jpg", caption: "Detail" },
+    ],
+  },
+  {
     id: "desk2",
     year: 2026,
     label: "2026",
-    splatUrl: "/scenes/desk2/scene-splat.ply",
-    alignUrl: "/scenes/desk2/scene.ply",
+    splatUrl: splatPathForMoment("desk2"),
+    alignUrl: alignPathForMoment("desk2"),
     photos: [
       { src: "/scenes/desk2/photo-01.jpg", caption: "Desk, rearranged" },
       { src: "/scenes/desk2/photo-02.jpg", caption: "New objects" },
@@ -67,6 +78,35 @@ export function yearAtTimelinePosition(t: number): number {
   const minYear = TIMELINE_YEARS[0];
   const maxYear = TIMELINE_YEARS[TIMELINE_YEARS.length - 1];
   return Math.round(minYear + t * (maxYear - minYear));
+}
+
+export function momentIndexAtTimeline(t: number, count = TIMELINE_MOMENTS.length): number {
+  if (count <= 1) return 0;
+  return Math.min(count - 1, Math.round(t * (count - 1)));
+}
+
+export function timelineLabelAtPosition(
+  t: number,
+  overlayAll: boolean
+): string {
+  const moments = TIMELINE_MOMENTS;
+  if (overlayAll) {
+    return moments.map((m) => `${m.year}`).join(" · ");
+  }
+  const n = moments.length;
+  if (n <= 1) return `${moments[0].year} · ${moments[0].id}`;
+
+  const clamped = Math.max(0, Math.min(1, t));
+  const pos = clamped * (n - 1);
+  const iLow = Math.floor(pos);
+  const iHigh = Math.min(n - 1, iLow + 1);
+  const frac = pos - iLow;
+
+  if (iLow !== iHigh && frac > 0.08 && frac < 0.92) {
+    return `${moments[iLow].year} → ${moments[iHigh].year}`;
+  }
+  const m = moments[momentIndexAtTimeline(t, n)];
+  return `${m.year} · ${m.id}`;
 }
 
 export async function assetExists(url: string): Promise<boolean> {
@@ -102,5 +142,4 @@ export async function resolveAlignUrl(
 }
 
 export const DEMO_SPLAT_SETUP_HINT =
-  "Desk demo uses pre-baked files in public/scenes/ — not the same as a live Aholo upload until you refresh them. " +
-  "npm run bake-splats (all photos) or npx tsx scripts/save-desk-splat-from-world.ts desk1 <worldId> after a good reconstruction.";
+  "Desk demo uses pre-baked files in public/scenes/ — run npm run bake-splats (desk1, desk3, desk2 folders) or save-desk-splat-from-world.";

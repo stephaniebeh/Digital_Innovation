@@ -15,6 +15,7 @@ import {
   COLMAP_UPRIGHT_ROTATION_X,
   DEFAULT_TRANSFORM,
   flipColmapVertical,
+  SCENE_IDS,
 } from "@/lib/scene-alignment";
 
 type Props = {
@@ -205,7 +206,7 @@ export default function AlignmentEditor({
         </p>
 
         <div className="flex gap-2">
-          {(["desk1", "desk2"] as const).map((id) => (
+          {SCENE_IDS.map((id) => (
             <button
               key={id}
               type="button"
@@ -228,7 +229,7 @@ export default function AlignmentEditor({
             onChange={(e) => onOverlayBothChange(e.target.checked)}
             className="rounded"
           />
-          Overlay both scenes (50/50) while aligning
+          Overlay all desk scenes while aligning
         </label>
 
         <div className="space-y-1.5 pt-1 border-t border-white/10">
@@ -302,6 +303,7 @@ export default function AlignmentEditor({
               onAlignmentChange({
                 desk1: flipColmapVertical(alignment.desk1),
                 desk2: flipColmapVertical(alignment.desk2),
+                desk3: flipColmapVertical(alignment.desk3),
               })
             }
             className="w-full py-1.5 text-[11px] rounded-lg border border-white/10 text-zinc-400 hover:text-white"
@@ -428,6 +430,7 @@ function defaultAlignmentFromModule(): SceneAlignmentState {
   return {
     desk1: { ...DEFAULT_TRANSFORM },
     desk2: { ...DEFAULT_TRANSFORM },
+    desk3: { ...DEFAULT_TRANSFORM },
   };
 }
 

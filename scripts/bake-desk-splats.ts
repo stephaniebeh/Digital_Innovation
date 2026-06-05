@@ -40,7 +40,10 @@ function loadEnvLocal(): void {
   }
 }
 
-function parseArgs(): { desks: ("desk1" | "desk2")[]; imageLimit: number | null } {
+function parseArgs(): {
+  desks: ("desk1" | "desk2" | "desk3")[];
+  imageLimit: number | null;
+} {
   const argv = process.argv.slice(2);
   let deskArg = "all";
   /** null = every image in desk1 images / desk2 images (or dense fallback) */
@@ -58,12 +61,17 @@ function parseArgs(): { desks: ("desk1" | "desk2")[]; imageLimit: number | null 
       deskArg = argv[i];
     }
   }
-  const desks: ("desk1" | "desk2")[] =
-    deskArg === "all" ? ["desk1", "desk2"] : [deskArg as "desk1" | "desk2"];
-  if (!desks.every((d) => d === "desk1" || d === "desk2")) {
+  const ALL_DESKS = ["desk1", "desk3", "desk2"] as const;
+  type DeskId = (typeof ALL_DESKS)[number];
+  const isDesk = (d: string): d is DeskId =>
+    ALL_DESKS.includes(d as DeskId);
+
+  const desks: DeskId[] =
+    deskArg === "all" ? [...ALL_DESKS] : isDesk(deskArg) ? [deskArg] : [];
+  if (desks.length === 0) {
     throw new Error(
-      "Usage: npx tsx scripts/bake-desk-splats.ts [desk1|desk2|all] [--images N]\n" +
-        "  Default: upload every photo in desk1/desk1 images and desk2/desk2 images.\n" +
+      "Usage: npx tsx scripts/bake-desk-splats.ts [desk1|desk3|desk2|all] [--images N]\n" +
+        "  Default: all photos from deskN/deskN images folders.\n" +
         "  --images N = optional cap with even sampling (quick tests only)."
     );
   }
@@ -121,7 +129,7 @@ function listDeskImages(desk: string, imageLimit: number | null): string[] {
 }
 
 async function bakeDesk(
-  desk: "desk1" | "desk2",
+  desk: "desk1" | "desk2" | "desk3",
   imageLimit: number | null
 ): Promise<void> {
   const images = listDeskImages(desk, imageLimit);

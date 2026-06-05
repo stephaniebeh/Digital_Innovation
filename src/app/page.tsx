@@ -31,6 +31,7 @@ import {
   RECONSTRUCTION_STAGES,
   TIMELINE_MOMENTS,
   blendForTimelinePosition,
+  momentIndexAtTimeline,
   yearAtTimelinePosition,
 } from "@/lib/demo-scenes";
 import { imageFilesFromFileList } from "@/lib/image-file-picker";
@@ -100,16 +101,13 @@ export default function Home() {
     setLoadError(null);
   }, []);
 
-  const primary = TIMELINE_MOMENTS[0];
-  const secondary = TIMELINE_MOMENTS[TIMELINE_MOMENTS.length - 1] ?? primary;
   const blend = blendForTimelinePosition(timelinePos);
   const displayYear = yearAtTimelinePosition(timelinePos);
-  const momentIndex = Math.min(
-    TIMELINE_MOMENTS.length - 1,
-    Math.round(timelinePos * Math.max(0, TIMELINE_MOMENTS.length - 1))
-  );
+  const momentIndex = momentIndexAtTimeline(timelinePos);
   const activeMoment =
     viewerSource === "demo" ? TIMELINE_MOMENTS[momentIndex] : null;
+  const momentById = (id: string) =>
+    TIMELINE_MOMENTS.find((m) => m.id === id);
 
   const enterDemoViewer = useCallback(() => {
     pollAbortRef.current = true;
@@ -260,7 +258,7 @@ export default function Home() {
             </h1>
             <p className="text-zinc-400 text-sm leading-relaxed">
               Upload photographs of a place — Aholo builds a 3D Gaussian splat, or
-              skip to the desk1 / desk2 demo scenes.
+              skip to the desk1 / desk3 / desk2 demo scenes.
             </p>
           </header>
 
@@ -355,9 +353,8 @@ export default function Home() {
           </section>
 
           <p className="text-[11px] text-zinc-600 max-w-sm">
-            Demo skip (bottom left) loads 3D Gaussian splats for desk1 / desk2
-            from <code className="text-zinc-500">scene-splat.ply</code> in each
-            scene folder.
+            Demo skip loads 3D Gaussian splats for desk1, desk3, and desk2 from{" "}
+            <code className="text-zinc-500">public/scenes/</code>.
           </p>
         </main>
       )}
@@ -394,12 +391,12 @@ export default function Home() {
         </main>
       )}
 
-      {viewing && primary && secondary && (
+      {viewing && TIMELINE_MOMENTS.length > 0 && (
         <main className="flex-1 flex flex-col relative min-h-0 h-[100dvh]">
           <div className="absolute inset-0 bottom-28">
             <SceneViewer
-              primarySplatUrl={primary.splatUrl}
-              secondarySplatUrl={secondary.splatUrl}
+              timelineMoments={TIMELINE_MOMENTS}
+              timelinePos={blend}
               aholoSplatUrl={
                 viewerSource === "aholo" ? aholoSplatUrl : null
               }
@@ -407,7 +404,6 @@ export default function Home() {
               sourceLabel={
                 viewerSource === "aholo" ? "Aholo reconstruction" : undefined
               }
-              blend={blend}
               alignment={alignment}
               overlayBoth={showAlignTools && alignOpen && alignOverlay}
             />
@@ -427,8 +423,8 @@ export default function Home() {
                 onUndo={undoAlignment}
                 overlayBoth={alignOverlay}
                 onOverlayBothChange={setAlignOverlay}
-                desk1PointUrl={primary.alignUrl}
-                desk2PointUrl={secondary.alignUrl}
+                desk1PointUrl={momentById("desk1")?.alignUrl ?? ""}
+                desk2PointUrl={momentById("desk2")?.alignUrl ?? ""}
                 gizmoMode={gizmoMode}
                 onGizmoModeChange={setGizmoMode}
               />

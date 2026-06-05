@@ -10,7 +10,9 @@
     "bake-splats": "tsx scripts/bake-desk-splats.ts all",
     "bake-splat:desk1": "tsx scripts/bake-desk-splats.ts desk1",
     "bake-splat:desk2": "tsx scripts/bake-desk-splats.ts desk2",
-    "save-desk-splat": "tsx scripts/save-desk-splat-from-world.ts"
+    "bake-splat:desk3": "tsx scripts/bake-desk-splats.ts desk3",
+    "save-desk-splat": "tsx scripts/save-desk-splat-from-world.ts",
+    "wait-save-desk3": "tsx scripts/wait-and-save-desk-splat.ts desk3 3FO4K4VFO9XK"
   },
   "dependencies": {
     "@mkkellogg/gaussian-splats-3d": "^0.4.7",

@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
+import { timelineLabelAtPosition } from "@/lib/demo-scenes";
 import {
   SPLAT_SCENE_LOAD_OPTIONS,
   SPLAT_VIEWER_OPTIONS,
 } from "@/lib/splat-viewer-config";
 import {
-  applyDeskLayerBlend,
+  applyTimelineLayerBlend,
   autoFrameSplatViewer,
 } from "@/lib/splat-viewer-utils";
 import {
@@ -17,62 +18,62 @@ import {
   waitForHostLayout,
 } from "@/lib/viewer-host";
 
+export type TimelineSplatLayer = {
+  id: string;
+  url: string | null;
+  format: AholoModelFormat;
+  missing?: boolean;
+};
+
 type Props = {
-  primaryUrl: string;
-  secondaryUrl: string;
-  primaryFormat: AholoModelFormat;
-  secondaryFormat: AholoModelFormat;
-  blend: number;
-  overlayBoth?: boolean;
+  layers: TimelineSplatLayer[];
+  timelinePos: number;
+  overlayAll?: boolean;
   onLoadError?: (message: string | null) => void;
 };
 
 type SplatViewer = import("@mkkellogg/gaussian-splats-3d").Viewer;
 
 export default function TimelineSplatViewer({
-  primaryUrl,
-  secondaryUrl,
-  primaryFormat,
-  secondaryFormat,
-  blend,
-  overlayBoth = false,
+  layers,
+  timelinePos,
+  overlayAll = false,
   onLoadError,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const layerARef = useRef<HTMLDivElement>(null);
-  const layerBRef = useRef<HTMLDivElement>(null);
-  const viewerARef = useRef<SplatViewer | null>(null);
-  const viewerBRef = useRef<SplatViewer | null>(null);
-  const desk2LoadingRef = useRef(false);
+  const layerHostsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const viewersRef = useRef<(SplatViewer | null)[]>([]);
+  const loadingRef = useRef<Set<number>>(new Set());
   const initGenRef = useRef(0);
   const onLoadErrorRef = useRef(onLoadError);
   const [loadPhase, setLoadPhase] = useState<"loading" | "ready">("loading");
-  const [desk2Ready, setDesk2Ready] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
   const [statusLine, setStatusLine] = useState("Preparing viewer…");
-  const [activeLabel, setActiveLabel] = useState("2020 · desk1");
+  const [activeLabel, setActiveLabel] = useState("");
 
   onLoadErrorRef.current = onLoadError;
 
+  const layerKey = layers.map((l) => `${l.id}:${l.url ?? "missing"}`).join("|");
+
   useEffect(() => {
     const root = rootRef.current;
-    const layerA = layerARef.current;
-    const layerB = layerBRef.current;
-    if (!root || !layerA || !layerB) return;
+    const hosts = layerHostsRef.current;
+    if (!root || layers.length === 0) return;
 
     const gen = ++initGenRef.current;
     let cancelled = false;
-    desk2LoadingRef.current = false;
-    setDesk2Ready(false);
-
-    clearViewerHost(layerA);
-    clearViewerHost(layerB);
-    viewerARef.current = null;
-    viewerBRef.current = null;
+    loadingRef.current = new Set();
+    viewersRef.current = new Array(layers.length).fill(null);
+    setLoadedCount(0);
     setLoadPhase("loading");
     setStatusLine("Preparing viewer…");
     onLoadErrorRef.current?.(null);
 
-    async function createDeskViewer(
+    for (const host of hosts) {
+      if (host) clearViewerHost(host);
+    }
+
+    async function createViewer(
       host: HTMLDivElement,
       url: string,
       format: AholoModelFormat
@@ -101,52 +102,57 @@ export default function TimelineSplatViewer({
       return viewer;
     }
 
-    async function loadDesk2(): Promise<void> {
-      if (desk2LoadingRef.current || viewerBRef.current || cancelled) return;
-      desk2LoadingRef.current = true;
-      setStatusLine("Loading desk2 (2026)…");
+    async function loadLayer(index: number): Promise<void> {
+      if (cancelled || loadingRef.current.has(index)) return;
+      if (viewersRef.current[index]) return;
+
+      const host = hosts[index];
+      const layer = layers[index];
+      if (!host || !layer || !layer.url || layer.missing) return;
+
+      loadingRef.current.add(index);
+      setStatusLine(`Loading ${layer.id}…`);
+
       try {
-        const viewerB = await createDeskViewer(
-          layerB!,
-          secondaryUrl,
-          secondaryFormat
-        );
+        const viewer = await createViewer(host, layer.url, layer.format);
         if (cancelled || gen !== initGenRef.current) {
-          teardownSplatViewer(viewerB);
+          teardownSplatViewer(viewer);
           return;
         }
-        viewerBRef.current = viewerB;
-        syncViewerCanvasSize(viewerB, layerB!);
-        setDesk2Ready(true);
-        setStatusLine("");
-        applyDeskLayerBlend(layerA!, layerB!, blend, overlayBoth);
+        viewersRef.current[index] = viewer;
+        syncViewerCanvasSize(viewer, host);
+        setLoadedCount((c) => c + 1);
+
+        const visibleHosts = hosts.filter(Boolean) as HTMLElement[];
+        applyTimelineLayerBlend(visibleHosts, timelinePos, overlayAll);
+        setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
       } catch (err) {
         if (!cancelled && gen === initGenRef.current) {
-          console.error("Desk2 splat load failed:", err);
+          console.error(`${layer.id} splat load failed:`, err);
+          onLoadErrorRef.current?.(
+            err instanceof Error ? err.message : `Failed to load ${layer.id}`
+          );
         }
       } finally {
-        desk2LoadingRef.current = false;
+        loadingRef.current.delete(index);
       }
     }
 
     async function init() {
-      setStatusLine("Loading desk1 (2020)…");
-      const viewerA = await createDeskViewer(layerA, primaryUrl, primaryFormat);
-      if (cancelled || gen !== initGenRef.current) {
-        teardownSplatViewer(viewerA);
-        return;
+      const firstReady = layers.findIndex((l) => l.url && !l.missing);
+      if (firstReady >= 0) {
+        await loadLayer(firstReady);
       }
-      viewerARef.current = viewerA;
-      syncViewerCanvasSize(viewerA, layerA);
-      autoFrameSplatViewer(viewerA, layerA);
+      if (cancelled || gen !== initGenRef.current) return;
 
-      applyDeskLayerBlend(layerA, layerB, blend, overlayBoth);
-      setActiveLabel(blend < 0.5 ? "2020 · desk1" : "2026 · desk2");
       setLoadPhase("ready");
       setStatusLine("");
       onLoadErrorRef.current?.(null);
+      setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
 
-      void loadDesk2();
+      for (let i = 0; i < layers.length; i++) {
+        if (i !== firstReady) void loadLayer(i);
+      }
     }
 
     init().catch((err) => {
@@ -159,53 +165,45 @@ export default function TimelineSplatViewer({
     });
 
     const onResize = () => {
-      syncViewerCanvasSize(viewerARef.current, layerA);
-      syncViewerCanvasSize(viewerBRef.current, layerB);
+      for (let i = 0; i < layers.length; i++) {
+        const host = hosts[i];
+        const viewer = viewersRef.current[i];
+        if (host && viewer) syncViewerCanvasSize(viewer, host);
+      }
     };
     window.addEventListener("resize", onResize);
 
     return () => {
       cancelled = true;
       window.removeEventListener("resize", onResize);
-      teardownSplatViewer(viewerARef.current);
-      teardownSplatViewer(viewerBRef.current);
-      viewerARef.current = null;
-      viewerBRef.current = null;
-      clearViewerHost(layerA);
-      clearViewerHost(layerB);
+      for (const viewer of viewersRef.current) {
+        teardownSplatViewer(viewer);
+      }
+      viewersRef.current = [];
+      for (const host of hosts) {
+        if (host) clearViewerHost(host);
+      }
     };
-  }, [primaryUrl, secondaryUrl, primaryFormat, secondaryFormat]);
+  }, [layerKey]);
 
   useEffect(() => {
-    const layerA = layerARef.current;
-    const layerB = layerBRef.current;
-    if (!layerA || !layerB || loadPhase !== "ready") return;
+    if (loadPhase !== "ready") return;
+    const hosts = layerHostsRef.current.filter(Boolean) as HTMLElement[];
+    applyTimelineLayerBlend(hosts, timelinePos, overlayAll);
+    setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
 
-    if (!viewerBRef.current && blend >= 0.5 + 0.1) {
-      setActiveLabel("2026 · desk2 (loading…)");
-      return;
+    const n = layers.length;
+    if (n <= 1) return;
+    const pos = timelinePos * (n - 1);
+    const focusIndex = Math.round(pos);
+
+    const host = layerHostsRef.current[focusIndex];
+    const viewer = viewersRef.current[focusIndex];
+    if (host && viewer) {
+      syncViewerCanvasSize(viewer, host);
+      autoFrameSplatViewer(viewer, host);
     }
-
-    applyDeskLayerBlend(layerA, layerB, blend, overlayBoth);
-
-    if (overlayBoth) {
-      setActiveLabel("Overlay · desk1 + desk2");
-    } else if (blend <= 0.5 - 0.1) {
-      setActiveLabel("2020 · desk1");
-      if (viewerARef.current) {
-        syncViewerCanvasSize(viewerARef.current, layerA);
-        autoFrameSplatViewer(viewerARef.current, layerA);
-      }
-    } else if (blend >= 0.5 + 0.1) {
-      setActiveLabel(desk2Ready ? "2026 · desk2" : "2026 · desk2 (loading…)");
-      if (viewerBRef.current) {
-        syncViewerCanvasSize(viewerBRef.current, layerB);
-        autoFrameSplatViewer(viewerBRef.current, layerB);
-      }
-    } else {
-      setActiveLabel("Crossfade · desk1 → desk2");
-    }
-  }, [blend, overlayBoth, loadPhase, desk2Ready, secondaryUrl, secondaryFormat]);
+  }, [timelinePos, overlayAll, loadPhase, layers.length, loadedCount]);
 
   return (
     <div
@@ -213,16 +211,27 @@ export default function TimelineSplatViewer({
       className="absolute inset-0 bg-zinc-950 splat-viewer-root"
       aria-label="3D memory space viewer"
     >
-      <div
-        ref={layerARef}
-        className="splat-viewer-layer absolute inset-0 w-full h-full"
-        aria-label="Desk1 2020 splat viewer"
-      />
-      <div
-        ref={layerBRef}
-        className="splat-viewer-layer absolute inset-0 w-full h-full"
-        aria-label="Desk2 2026 splat viewer"
-      />
+      {layers.map((layer, i) => (
+        <div
+          key={layer.id}
+          ref={(el) => {
+            layerHostsRef.current[i] = el;
+          }}
+          className="splat-viewer-layer absolute inset-0 w-full h-full"
+          aria-label={`${layer.id} splat viewer`}
+        >
+          {layer.missing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 pointer-events-none z-10">
+              <p className="text-sm text-zinc-400 text-center px-6 max-w-sm">
+                <span className="text-amber-200/90">{layer.id}</span> splat not
+                on disk yet — run{" "}
+                <code className="text-zinc-300">npm run bake-splat:{layer.id}</code>{" "}
+                or wait for the bake to finish, then hard-refresh.
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
 
       {loadPhase === "ready" && (
         <p className="absolute bottom-32 left-4 z-10 text-[10px] uppercase tracking-wider text-amber-200/80 pointer-events-none">
@@ -234,7 +243,8 @@ export default function TimelineSplatViewer({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none z-20">
           <p className="text-sm text-zinc-400">{statusLine}</p>
           <p className="text-[10px] text-zinc-600 max-w-xs text-center">
-            Loading desk1 first — desk2 loads in the background.
+            Loading {layers[0]?.id ?? "scene"} first — other desks load in the
+            background.
           </p>
         </div>
       )}

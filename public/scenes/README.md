@@ -5,7 +5,10 @@ The desk demo shows **3D Gaussian splats** (`scene-splat.spz` or `scene-splat.pl
 | Desk | Source photos | Output |
 |------|---------------|--------|
 | **desk1** | `desk1/desk1 images/` (preferred) or `desk1/dense/0/images/` | `public/scenes/desk1/scene-splat.{spz\|ply}` |
+| **desk3** | `desk3/desk3 images/` (preferred) or `desk3/dense/0/images/` | `public/scenes/desk3/scene-splat.{spz\|ply}` |
 | **desk2** | `desk2/desk2 images/` (preferred) or `desk2/dense/0/images/` | `public/scenes/desk2/scene-splat.{spz\|ply}` |
+
+Timeline order: **2020 desk1** → **2023 desk3** → **2026 desk2**.
 
 ### Why Aholo’s website can look sharper than this demo
 
@@ -31,6 +34,7 @@ This uploads **all** images per desk (high quality), runs Aholo reconstruction (
 
 ```powershell
 npm run bake-splat:desk1
+npm run bake-splat:desk3
 npm run bake-splat:desk2
 ```
 

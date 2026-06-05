@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import {
   DEMO_SPLAT_SETUP_HINT,
   resolveSplatUrl,
+  type TimelineMoment,
 } from "@/lib/demo-scenes";
 import ViewerErrorPanel from "@/components/ViewerErrorPanel";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import { splatFormatFromUrl } from "@/lib/splat-viewer-config";
 import type { SceneAlignmentState } from "@/lib/scene-alignment";
 import dynamic from "next/dynamic";
+import type { TimelineSplatLayer } from "@/components/TimelineSplatViewer";
 
 const TimelineSplatViewer = dynamic(
   () => import("@/components/TimelineSplatViewer"),
@@ -21,17 +23,9 @@ const AholoSplatViewer = dynamic(
   { ssr: false }
 );
 
-type DeskSplatAssets = {
-  primaryUrl: string;
-  secondaryUrl: string;
-  primaryFormat: AholoModelFormat;
-  secondaryFormat: AholoModelFormat;
-};
-
 type Props = {
-  primarySplatUrl: string;
-  secondarySplatUrl: string;
-  blend: number;
+  timelineMoments: TimelineMoment[];
+  timelinePos: number;
   alignment: SceneAlignmentState;
   overlayBoth: boolean;
   aholoSplatUrl?: string | null;
@@ -40,9 +34,8 @@ type Props = {
 };
 
 export default function SceneViewer({
-  primarySplatUrl,
-  secondarySplatUrl,
-  blend,
+  timelineMoments,
+  timelinePos,
   alignment: _alignment,
   overlayBoth,
   aholoSplatUrl = null,
@@ -50,46 +43,63 @@ export default function SceneViewer({
   sourceLabel,
 }: Props) {
   const [deskReady, setDeskReady] = useState<boolean | null>(null);
-  const [deskAssets, setDeskAssets] = useState<DeskSplatAssets | null>(null);
+  const [deskLayers, setDeskLayers] = useState<TimelineSplatLayer[] | null>(
+    null
+  );
+  const [missingDeskIds, setMissingDeskIds] = useState<string[]>([]);
   const [viewerError, setViewerError] = useState<string | null>(null);
+
+  const momentKey = timelineMoments.map((m) => m.splatUrl).join("|");
 
   useEffect(() => {
     let cancelled = false;
 
     async function resolve() {
       setViewerError(null);
-      setDeskAssets(null);
+      setDeskLayers(null);
+      setMissingDeskIds([]);
 
       if (aholoSplatUrl) {
         setDeskReady(true);
         return;
       }
 
-      const [primarySplat, secondarySplat] = await Promise.all([
-        resolveSplatUrl(primarySplatUrl),
-        resolveSplatUrl(secondarySplatUrl),
-      ]);
+      const resolved = await Promise.all(
+        timelineMoments.map((m) => resolveSplatUrl(m.splatUrl))
+      );
 
       if (cancelled) return;
 
       const missing: string[] = [];
-      if (primarySplat.missing) missing.push("desk1/scene-splat");
-      if (secondarySplat.missing) missing.push("desk2/scene-splat");
+      const layers: TimelineSplatLayer[] = timelineMoments.map((m, i) => {
+        if (resolved[i].missing) {
+          missing.push(m.id);
+          return {
+            id: m.id,
+            url: null,
+            format: "ply" as AholoModelFormat,
+            missing: true,
+          };
+        }
+        return {
+          id: m.id,
+          url: resolved[i].url,
+          format: splatFormatFromUrl(resolved[i].url),
+          missing: false,
+        };
+      });
 
-      if (missing.length > 0) {
+      const readyCount = layers.length - missing.length;
+      if (readyCount === 0) {
         setDeskReady(false);
         setViewerError(
-          `Missing 3D Gaussian splat file(s): ${missing.join(", ")}. ${DEMO_SPLAT_SETUP_HINT}`
+          `No splat files found in public/scenes/. ${DEMO_SPLAT_SETUP_HINT}`
         );
         return;
       }
 
-      setDeskAssets({
-        primaryUrl: primarySplat.url,
-        secondaryUrl: secondarySplat.url,
-        primaryFormat: splatFormatFromUrl(primarySplat.url),
-        secondaryFormat: splatFormatFromUrl(secondarySplat.url),
-      });
+      setDeskLayers(layers);
+      setMissingDeskIds(missing);
       setDeskReady(true);
     }
 
@@ -98,7 +108,7 @@ export default function SceneViewer({
     return () => {
       cancelled = true;
     };
-  }, [primarySplatUrl, secondarySplatUrl, aholoSplatUrl]);
+  }, [momentKey, aholoSplatUrl]);
 
   if (!aholoSplatUrl && deskReady === null) {
     return (
@@ -113,7 +123,7 @@ export default function SceneViewer({
       <ViewerErrorPanel
         title="Splat scenes not ready"
         message={viewerError}
-        hint="Re-bake: npm run bake-splats — or copy your good job: npx tsx scripts/save-desk-splat-from-world.ts desk1 <worldId>"
+        hint="Run: npm run bake-splats or npm run bake-splat:desk3"
       />
     );
   }
@@ -134,10 +144,15 @@ export default function SceneViewer({
         >
           {badgeLabel}
         </span>
-        {!aholoSplatUrl && deskReady && (
-          <p className="text-[10px] text-zinc-500 leading-snug max-w-sm">
-            Uses files in public/scenes/. If this looks worse than a fresh Aholo
-            upload, re-bake or save your worldId into desk1/desk2.
+        {missingDeskIds.length > 0 && (
+          <p className="text-[10px] text-amber-200/80 leading-snug max-w-sm">
+            Still waiting on: {missingDeskIds.join(", ")}.{" "}
+            {missingDeskIds.includes("desk3") && (
+              <>
+                Desk3 bake may still be running — or run{" "}
+                <code className="text-zinc-400">npm run bake-splat:desk3</code>
+              </>
+            )}
           </p>
         )}
       </div>
@@ -149,15 +164,12 @@ export default function SceneViewer({
           format={aholoModelFormat}
           onLoadError={setViewerError}
         />
-      ) : deskAssets ? (
+      ) : deskLayers ? (
         <TimelineSplatViewer
-          key={`${deskAssets.primaryUrl}|${deskAssets.secondaryUrl}`}
-          primaryUrl={deskAssets.primaryUrl}
-          secondaryUrl={deskAssets.secondaryUrl}
-          primaryFormat={deskAssets.primaryFormat}
-          secondaryFormat={deskAssets.secondaryFormat}
-          blend={blend}
-          overlayBoth={overlayBoth}
+          key={deskLayers.map((l) => `${l.id}:${l.url ?? "x"}`).join("|")}
+          layers={deskLayers}
+          timelinePos={timelinePos}
+          overlayAll={overlayBoth}
           onLoadError={setViewerError}
         />
       ) : null}

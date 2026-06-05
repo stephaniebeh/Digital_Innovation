@@ -19,6 +19,7 @@ export type SceneTransform = {
 export type SceneAlignmentState = {
   desk1: SceneTransform;
   desk2: SceneTransform;
+  desk3: SceneTransform;
 };
 
 /** COLMAP → Y-up correction (radians) */
@@ -39,20 +40,27 @@ export const DEFAULT_TRANSFORM: SceneTransform = {
 
 const STORAGE_KEY = "afterimage-scene-alignment-v2";
 
+const DESK_IDS = ["desk1", "desk2", "desk3"] as const;
+
 function normalizeTransform(raw: Partial<SceneTransform> | undefined): SceneTransform {
   const t = { ...DEFAULT_TRANSFORM, ...raw };
-  // Migrate v1 saves that only had rotationY
   if (raw && !("rotationX" in raw)) {
     t.rotationX = COLMAP_UPRIGHT_ROTATION_X;
   }
   return t;
 }
 
-export function defaultAlignment(): SceneAlignmentState {
+function normalizeState(raw: Partial<SceneAlignmentState>): SceneAlignmentState {
   return {
-    desk1: { ...DEFAULT_TRANSFORM },
-    desk2: { ...DEFAULT_TRANSFORM },
+    desk1: normalizeTransform(raw.desk1),
+    desk2: normalizeTransform(raw.desk2),
+    desk3: normalizeTransform(raw.desk3),
   };
+}
+
+export function defaultAlignment(): SceneAlignmentState {
+  const base = { ...DEFAULT_TRANSFORM };
+  return { desk1: { ...base }, desk2: { ...base }, desk3: { ...base } };
 }
 
 /** Aholo / 3DGS splats are already Y-up — no COLMAP −90° tilt on the viewer */
@@ -63,7 +71,7 @@ export function defaultSplatAlignment(): SceneAlignmentState {
     rotationY: 0,
     rotationZ: 0,
   };
-  return { desk1: { ...base }, desk2: { ...base } };
+  return { desk1: { ...base }, desk2: { ...base }, desk3: { ...base } };
 }
 
 export function loadAlignment(): SceneAlignmentState {
@@ -73,19 +81,13 @@ export function loadAlignment(): SceneAlignmentState {
     if (!raw) {
       const legacy = localStorage.getItem("afterimage-scene-alignment-v1");
       if (legacy) {
-        const parsed = JSON.parse(legacy) as SceneAlignmentState;
-        return {
-          desk1: normalizeTransform(parsed.desk1),
-          desk2: normalizeTransform(parsed.desk2),
-        };
+        const parsed = JSON.parse(legacy) as Partial<SceneAlignmentState>;
+        return normalizeState(parsed);
       }
       return defaultAlignment();
     }
-    const parsed = JSON.parse(raw) as SceneAlignmentState;
-    return {
-      desk1: normalizeTransform(parsed.desk1),
-      desk2: normalizeTransform(parsed.desk2),
-    };
+    const parsed = JSON.parse(raw) as Partial<SceneAlignmentState>;
+    return normalizeState(parsed);
   } catch {
     return defaultAlignment();
   }
@@ -96,11 +98,12 @@ export function saveAlignment(state: SceneAlignmentState): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-export type SceneId = "desk1" | "desk2";
+export type SceneId = (typeof DESK_IDS)[number];
+
+export const SCENE_IDS: SceneId[] = [...DESK_IDS];
 
 export type GizmoMode = "translate" | "rotate" | "scale";
 
-/** Read back transform from a gumball-adjusted object */
 export function sceneTransformFromObject(object: Object3D): SceneTransform {
   const sx = object.scale.x;
   const sy = object.scale.y;
@@ -129,7 +132,6 @@ export function applySceneTransform(object: Object3D, t: SceneTransform): void {
   );
 }
 
-/** Toggle between standard COLMAP upright and inverted (upside-down) */
 export function flipColmapVertical(t: SceneTransform): SceneTransform {
   const isUpright = Math.abs(t.rotationX - COLMAP_UPRIGHT_ROTATION_X) < 0.01;
   return {

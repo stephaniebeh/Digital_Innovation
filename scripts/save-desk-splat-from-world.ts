@@ -37,10 +37,12 @@ function loadEnvLocal(): void {
 
 async function main(): Promise<void> {
   loadEnvLocal();
-  const desk = process.argv[2] as "desk1" | "desk2";
+  const desk = process.argv[2] as "desk1" | "desk2" | "desk3";
   const worldId = process.argv[3]?.trim();
-  if (desk !== "desk1" && desk !== "desk2") {
-    throw new Error("Usage: npx tsx scripts/save-desk-splat-from-world.ts desk1|desk2 <worldId>");
+  if (desk !== "desk1" && desk !== "desk2" && desk !== "desk3") {
+    throw new Error(
+      "Usage: npx tsx scripts/save-desk-splat-from-world.ts desk1|desk3|desk2 <worldId>"
+    );
   }
   if (!worldId) {
     throw new Error("Missing worldId — copy it from the app after reconstruction succeeds");
