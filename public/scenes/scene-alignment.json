@@ -1,0 +1,38 @@
+{
+  "desk1": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 0,
+    "scale": 1,
+    "flipX": 1,
+    "flipY": 1,
+    "flipZ": 1
+  },
+  "desk2": {
+    "x": 0,
+    "y": -0.10537809927145791,
+    "z": 0.13838573422440764,
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 1.9512267148370643,
+    "scale": 1,
+    "flipX": 1,
+    "flipY": 1,
+    "flipZ": 1
+  },
+  "desk3": {
+    "x": 0,
+    "y": 0.03771733374239267,
+    "z": 0.04732756280846462,
+    "rotationX": 0,
+    "rotationY": 0,
+    "rotationZ": 1.9761622054704098,
+    "scale": 1,
+    "flipX": 1,
+    "flipY": 1,
+    "flipZ": 1
+  }
+}

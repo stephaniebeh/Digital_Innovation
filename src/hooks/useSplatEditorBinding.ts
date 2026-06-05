@@ -16,6 +16,10 @@ import {
 import type { SplatCropBox, SplatEditTool, SplatSceneEdit } from "@/lib/splat-editor/types";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 import {
+  mountEditorOverlayRender,
+  styleGizmoOverlay,
+} from "@/lib/editor-gizmo-overlay";
+import {
   getViewerCanvas,
   getViewerThreeScene,
   requestViewerRender,
@@ -340,11 +344,15 @@ export function useSplatEditorBinding({
 
     const gizmoRoot = controls.getHelper();
     gizmoRootRef.current = gizmoRoot;
-    threeScene.add(gizmoRoot);
+    styleGizmoOverlay(gizmoRoot);
 
     const cropGroup = new THREE.Group();
     cropGroupRef.current = cropGroup;
-    threeScene.add(cropGroup);
+
+    const overlayScene = new THREE.Scene();
+    overlayScene.add(gizmoRoot);
+    overlayScene.add(cropGroup);
+    const unmountOverlayRender = mountEditorOverlayRender(viewer, overlayScene);
 
     const cropBox = edit.crop ?? defaultCropFromScene(sceneObj);
     const size = new THREE.Vector3(
@@ -402,6 +410,7 @@ export function useSplatEditorBinding({
         controls.object === sceneObj
       ) {
         onEditChange({ transform: readTransformFromObject(sceneObj) });
+        styleGizmoOverlay(gizmoRoot);
         requestViewerRender(viewer);
       }
     };
@@ -446,13 +455,16 @@ export function useSplatEditorBinding({
         controls.enabled = true;
       } else if (tool === "scale") {
         controls.setMode("scale");
+        controls.size = 1.45;
         controls.attach(sceneObj);
         controls.enabled = true;
       } else {
+        controls.size = 1;
         controls.detach();
         controls.enabled = false;
       }
       if (orbit) orbit.enabled = false;
+      styleGizmoOverlay(gizmoRoot);
       requestViewerRender(viewer);
     };
 
@@ -460,16 +472,15 @@ export function useSplatEditorBinding({
     applyTool();
 
     return () => {
+      unmountOverlayRender();
       controls.removeEventListener("objectChange", onObjectChange);
       controls.removeEventListener("dragging-changed", onDraggingChanged);
       controls.removeEventListener("mouseDown", onGizmoPointerDown);
       controls.removeEventListener("mouseUp", onGizmoPointerUp);
       controls.detach();
       controls.dispose();
-      if (gizmoRootRef.current) {
-        threeScene.remove(gizmoRootRef.current);
-      }
-      threeScene.remove(cropGroup);
+      overlayScene.remove(gizmoRoot);
+      overlayScene.remove(cropGroup);
       cropGeo.dispose();
       cropMat.dispose();
       controlsRef.current = null;

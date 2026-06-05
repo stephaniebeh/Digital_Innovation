@@ -76,7 +76,8 @@ export function autoFrameSplatViewer(
 export function applyAlignLayerVisibility(
   layers: HTMLElement[],
   layerIds: string[],
-  visibleById: Record<string, boolean>
+  visibleById: Record<string, boolean>,
+  editingSceneId?: string
 ): void {
   for (let k = 0; k < layers.length; k++) {
     const el = layers[k];
@@ -86,10 +87,14 @@ export function applyAlignLayerVisibility(
       el.style.display = "none";
       el.style.opacity = "0";
       el.style.pointerEvents = "none";
+      el.style.zIndex = "";
     } else {
+      const isEditing = editingSceneId !== undefined && id === editingSceneId;
       el.style.display = "block";
       el.style.opacity = "1";
-      el.style.pointerEvents = "auto";
+      el.style.zIndex = isEditing ? "20" : "10";
+      // Orbit on the desk being edited; cameras stay linked via useAlignCameraSync.
+      el.style.pointerEvents = isEditing ? "auto" : "none";
     }
   }
 }

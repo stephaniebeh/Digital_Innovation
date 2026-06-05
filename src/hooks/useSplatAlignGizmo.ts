@@ -12,6 +12,10 @@ import {
   type SceneTransform,
 } from "@/lib/scene-alignment";
 import {
+  mountEditorOverlayRender,
+  styleGizmoOverlay,
+} from "@/lib/editor-gizmo-overlay";
+import {
   getViewerCanvas,
   getViewerThreeScene,
   requestViewerRender,
@@ -81,7 +85,13 @@ export function useSplatAlignGizmo({
     const controls = new TransformControls(camera, canvas);
     controlsRef.current = controls;
     const gizmoRoot = controls.getHelper();
-    threeScene.add(gizmoRoot);
+    styleGizmoOverlay(gizmoRoot);
+    if (gizmoMode === "scale") controls.size = 1.45;
+
+    const overlayScene = new THREE.Scene();
+    overlayScene.add(gizmoRoot);
+    const unmountOverlayRender = mountEditorOverlayRender(viewer, overlayScene);
+
     controls.setMode(gizmoMode);
     controls.attach(sceneObj);
 
@@ -109,13 +119,14 @@ export function useSplatAlignGizmo({
     controls.addEventListener("dragging-changed", onDraggingChanged);
 
     return () => {
+      unmountOverlayRender();
       controls.removeEventListener("objectChange", onObjectChange);
       controls.removeEventListener("mouseDown", onMouseDown);
       controls.removeEventListener("mouseUp", onMouseUp);
       controls.removeEventListener("dragging-changed", onDraggingChanged);
       controls.detach();
       controls.dispose();
-      threeScene.remove(gizmoRoot);
+      overlayScene.remove(gizmoRoot);
       controlsRef.current = null;
       if (orbit) orbit.enabled = true;
     };
@@ -131,6 +142,11 @@ export function useSplatAlignGizmo({
 
   useEffect(() => {
     if (!enabled) return;
-    controlsRef.current?.setMode(gizmoMode);
+    const controls = controlsRef.current;
+    if (!controls) return;
+    controls.setMode(gizmoMode);
+    controls.size = gizmoMode === "scale" ? 1.45 : 1;
+    const helper = controls.getHelper();
+    styleGizmoOverlay(helper);
   }, [gizmoMode, enabled]);
 }

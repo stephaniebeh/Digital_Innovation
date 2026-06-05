@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { syncViewerCameraFrom } from "@/lib/align-camera-sync";
+import { useAlignCameraSync } from "@/hooks/useAlignCameraSync";
+import { useTimelineCameraSync } from "@/hooks/useTimelineCameraSync";
 import { useSplatAlignGizmo } from "@/hooks/useSplatAlignGizmo";
 import {
   defaultSplatAlignment,
@@ -98,6 +101,12 @@ export default function TimelineSplatViewer({
     [layers, loadedCount]
   );
 
+  const getAllViewers = useCallback(
+    () =>
+      viewersRef.current.filter((viewer): viewer is SplatViewer => viewer !== null),
+    [loadedCount]
+  );
+
   useSplatAlignGizmo({
     getViewerForScene,
     alignment: alignment ?? defaultSplatAlignment(),
@@ -106,6 +115,20 @@ export default function TimelineSplatViewer({
     gizmoMode,
     onTransformPatch: onAlignTransformPatch ?? (() => {}),
     onDragStart: onAlignDragStart ?? (() => {}),
+    viewerEpoch: loadedCount,
+  });
+
+  useAlignCameraSync({
+    getViewerForScene,
+    editingScene,
+    alignSceneVisibility,
+    enabled: alignMode && loadPhase === "ready",
+    viewerEpoch: loadedCount,
+  });
+
+  useTimelineCameraSync({
+    getViewers: getAllViewers,
+    enabled: loadPhase === "ready" && !alignMode,
     viewerEpoch: loadedCount,
   });
 
@@ -163,7 +186,6 @@ export default function TimelineSplatViewer({
         applySplatEditDeletes(viewer, savedEdit);
       }
       syncViewerCanvasSize(viewer, host);
-      autoFrameSplatViewer(viewer, host);
       return viewer;
     }
 
@@ -186,6 +208,12 @@ export default function TimelineSplatViewer({
         }
         viewersRef.current[index] = viewer;
         syncViewerCanvasSize(viewer, host);
+        const anchor = viewersRef.current.find((v, i) => v && i !== index);
+        if (anchor) {
+          syncViewerCameraFrom(anchor, viewer);
+        } else {
+          autoFrameSplatViewer(viewer, host);
+        }
         setLoadedCount((c) => c + 1);
 
         const visibleHosts = hosts.filter(Boolean) as HTMLElement[];
@@ -266,7 +294,12 @@ export default function TimelineSplatViewer({
     const layerIds = layers.map((l) => l.id);
 
     if (alignMode && alignSceneVisibility) {
-      applyAlignLayerVisibility(hosts, layerIds, alignSceneVisibility);
+      applyAlignLayerVisibility(
+        hosts,
+        layerIds,
+        alignSceneVisibility,
+        editingScene
+      );
       const visible = layerIds.filter((id) => alignSceneVisibility[id as SceneId]);
       setActiveLabel(
         visible.length > 0 ? `Align · ${visible.join(" + ")}` : "Align · no scenes visible"
@@ -299,7 +332,6 @@ export default function TimelineSplatViewer({
 
     if (host && viewer && layer?.url && !layer.missing) {
       syncViewerCanvasSize(viewer, host);
-      autoFrameSplatViewer(viewer, host);
       onEditorHandleRef.current?.({
         sceneKey: layer.url,
         label: layer.id,
@@ -317,6 +349,7 @@ export default function TimelineSplatViewer({
     overlayAll,
     alignMode,
     alignSceneVisibility,
+    editingScene,
     loadPhase,
     layers,
     loadedCount,
