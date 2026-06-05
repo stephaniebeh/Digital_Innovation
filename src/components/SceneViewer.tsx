@@ -9,7 +9,13 @@ import {
 import ViewerErrorPanel from "@/components/ViewerErrorPanel";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import { splatFormatFromUrl } from "@/lib/splat-viewer-config";
-import type { SceneAlignmentState } from "@/lib/scene-alignment";
+import type {
+  AlignSceneVisibility,
+  GizmoMode,
+  SceneAlignmentState,
+  SceneId,
+  SceneTransform,
+} from "@/lib/scene-alignment";
 import dynamic from "next/dynamic";
 import type { TimelineSplatLayer } from "@/components/TimelineSplatViewer";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
@@ -29,6 +35,12 @@ type Props = {
   timelinePos: number;
   alignment: SceneAlignmentState;
   overlayBoth: boolean;
+  alignMode?: boolean;
+  alignSceneVisibility?: AlignSceneVisibility;
+  editingScene?: SceneId;
+  gizmoMode?: GizmoMode;
+  onAlignTransformPatch?: (id: SceneId, transform: SceneTransform) => void;
+  onAlignDragStart?: () => void;
   aholoSplatUrl?: string | null;
   aholoModelFormat?: AholoModelFormat;
   sourceLabel?: string;
@@ -39,8 +51,14 @@ type Props = {
 export default function SceneViewer({
   timelineMoments,
   timelinePos,
-  alignment: _alignment,
+  alignment,
   overlayBoth,
+  alignMode = false,
+  alignSceneVisibility,
+  editingScene = "desk2",
+  gizmoMode = "translate",
+  onAlignTransformPatch,
+  onAlignDragStart,
   aholoSplatUrl = null,
   aholoModelFormat = "ply",
   sourceLabel,
@@ -177,6 +195,13 @@ export default function SceneViewer({
           layers={deskLayers}
           timelinePos={timelinePos}
           overlayAll={overlayBoth}
+          alignMode={alignMode}
+          alignment={alignment}
+          alignSceneVisibility={alignSceneVisibility}
+          editingScene={editingScene}
+          gizmoMode={gizmoMode}
+          onAlignTransformPatch={onAlignTransformPatch}
+          onAlignDragStart={onAlignDragStart}
           onLoadError={setViewerError}
           onEditorHandle={onEditorHandle}
         />

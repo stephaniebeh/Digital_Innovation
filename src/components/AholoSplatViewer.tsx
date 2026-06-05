@@ -9,6 +9,7 @@ import {
   SPLAT_VIEWER_OPTIONS,
 } from "@/lib/splat-viewer-config";
 import { autoFrameSplatViewer } from "@/lib/splat-viewer-utils";
+import { configureSplatViewerOrbit } from "@/lib/viewer-controls";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 import { requestViewerRender } from "@/lib/splat-viewer-api";
 import {
@@ -94,6 +95,7 @@ export default function AholoSplatViewer({
       }
 
       viewer.start();
+      configureSplatViewerOrbit(viewer);
       if (savedEdit) {
         applySplatEditDeletes(viewer, savedEdit);
       }

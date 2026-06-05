@@ -58,10 +58,10 @@ export function showSelectionHighlight(
 
   const material = new THREE.PointsMaterial({
     color: 0xffc828,
-    size: 6,
+    size: 5,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.38,
     depthTest: false,
     depthWrite: false,
   });

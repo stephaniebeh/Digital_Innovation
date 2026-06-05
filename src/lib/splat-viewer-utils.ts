@@ -72,6 +72,28 @@ export function autoFrameSplatViewer(
   forceRender(viewer);
 }
 
+/** Show only selected desk layers during align mode. */
+export function applyAlignLayerVisibility(
+  layers: HTMLElement[],
+  layerIds: string[],
+  visibleById: Record<string, boolean>
+): void {
+  for (let k = 0; k < layers.length; k++) {
+    const el = layers[k];
+    const id = layerIds[k];
+    const show = visibleById[id] ?? false;
+    if (!show) {
+      el.style.display = "none";
+      el.style.opacity = "0";
+      el.style.pointerEvents = "none";
+    } else {
+      el.style.display = "block";
+      el.style.opacity = "1";
+      el.style.pointerEvents = "auto";
+    }
+  }
+}
+
 /** Crossfade N timeline layers; t=0 → first scene, t=1 → last. */
 export function applyTimelineLayerBlend(
   layers: HTMLElement[],

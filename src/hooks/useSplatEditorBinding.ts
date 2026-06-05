@@ -97,7 +97,7 @@ export function useSplatEditorBinding({
     const dragStyle =
       "position:absolute;pointer-events:none;border:1px solid rgba(56,189,248,0.95);background:rgba(56,189,248,0.14);display:none;z-index:30;box-sizing:border-box;";
     const selectedStyle =
-      "position:absolute;pointer-events:none;border:2px solid rgba(255,200,40,0.95);background:rgba(255,200,40,0.1);display:none;z-index:30;box-sizing:border-box;";
+      "position:absolute;pointer-events:none;border:2px solid rgba(255,200,40,0.5);background:rgba(255,200,40,0.06);display:none;z-index:30;box-sizing:border-box;";
     overlay.style.cssText = dragStyle;
     host.style.position = host.style.position || "relative";
     host.appendChild(overlay);

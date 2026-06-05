@@ -22,11 +22,12 @@ import {
 } from "@/lib/aholo/client";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import {
+  defaultAlignSceneVisibility,
   defaultSplatAlignment,
-  loadAlignment,
-  saveAlignment,
+  type AlignSceneVisibility,
   type GizmoMode,
   type SceneId,
+  type SceneTransform,
 } from "@/lib/scene-alignment";
 import {
   RECONSTRUCTION_STAGES,
@@ -35,6 +36,7 @@ import {
   momentIndexAtTimeline,
   yearAtTimelinePosition,
 } from "@/lib/demo-scenes";
+import { resolveAlignment } from "@/lib/alignment-persistence";
 import { imageFilesFromFileList } from "@/lib/image-file-picker";
 import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 
@@ -79,24 +81,42 @@ export default function Home() {
   const [editorHandle, setEditorHandle] = useState<SplatViewerHandle | null>(
     null
   );
-  const [alignOverlay, setAlignOverlay] = useState(true);
+  const [alignSceneVisibility, setAlignSceneVisibility] =
+    useState<AlignSceneVisibility>(defaultAlignSceneVisibility);
   const [editingScene, setEditingScene] = useState<SceneId>("desk2");
-  const [gizmoMode, setGizmoMode] = useState<GizmoMode>("rotate");
+  const [gizmoMode, setGizmoMode] = useState<GizmoMode>("translate");
   const pollAbortRef = useRef(false);
 
   const {
     alignment,
     changeAlignment,
     setAlignmentSilent,
-    beginEditStep,
-    endEditStep,
+    beginGizmoDrag,
     undo: undoAlignment,
     canUndo,
-  } = useAlignmentHistory(loadAlignment());
+  } = useAlignmentHistory(defaultSplatAlignment());
 
   useEffect(() => {
-    saveAlignment(alignment);
-  }, [alignment]);
+    if (viewerSource !== "demo") return;
+    let cancelled = false;
+    resolveAlignment().then((resolved) => {
+      if (!cancelled) setAlignmentSilent(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerSource, setAlignmentSilent]);
+
+  const patchAlignTransform = useCallback(
+    (id: SceneId, transform: SceneTransform) => {
+      setAlignmentSilent((prev) => ({ ...prev, [id]: transform }));
+    },
+    [setAlignmentSilent]
+  );
+
+  const setSceneVisible = useCallback((id: SceneId, visible: boolean) => {
+    setAlignSceneVisibility((prev) => ({ ...prev, [id]: visible }));
+  }, []);
 
   const fileCount = selectedImages.length;
   const hasEnoughImages = fileCount >= MIN_RECONSTRUCTION_IMAGES;
@@ -243,7 +263,7 @@ export default function Home() {
       return "Editor · drag to select · Backspace delete · right-drag orbit · save";
     }
     if (alignOpen) {
-      return "Align mode · sliders · auto-align uses COLMAP scene.ply · Ctrl+Z undo · overlay all";
+      return "Align · drag gumball · toggle visibility · save changes · Ctrl+Z undo";
     }
     return "Timeline · 2020 desk1 · 2023 desk3 · 2026 desk2 · drag to orbit · scroll zoom";
   }, [viewing, alignOpen, editorOpen, viewerSource]);
@@ -419,7 +439,13 @@ export default function Home() {
                 viewerSource === "aholo" ? "Aholo reconstruction" : undefined
               }
               alignment={alignment}
-              overlayBoth={showAlignTools && alignOpen && alignOverlay}
+              overlayBoth={false}
+              alignMode={showAlignTools && alignOpen}
+              alignSceneVisibility={alignSceneVisibility}
+              editingScene={editingScene}
+              gizmoMode={gizmoMode}
+              onAlignTransformPatch={patchAlignTransform}
+              onAlignDragStart={beginGizmoDrag}
               onEditorHandle={setEditorHandle}
             />
 
@@ -437,13 +463,10 @@ export default function Home() {
                 onEditingChange={setEditingScene}
                 alignment={alignment}
                 onAlignmentChange={changeAlignment}
-                onAlignmentPatch={setAlignmentSilent}
-                onBeginEditStep={beginEditStep}
-                onEndEditStep={endEditStep}
                 canUndo={canUndo}
                 onUndo={undoAlignment}
-                overlayBoth={alignOverlay}
-                onOverlayBothChange={setAlignOverlay}
+                sceneVisibility={alignSceneVisibility}
+                onSceneVisibilityChange={setSceneVisible}
                 desk1PointUrl={momentById("desk1")?.alignUrl ?? ""}
                 desk2PointUrl={momentById("desk2")?.alignUrl ?? ""}
                 gizmoMode={gizmoMode}

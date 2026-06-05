@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { clearViewerHost, teardownSplatViewer } from "@/lib/viewer-host";
+import { configureSplatViewerOrbit } from "@/lib/viewer-controls";
 
 type Props = {
   modelUrl: string;
@@ -37,6 +38,7 @@ export default function SplatViewer({ modelUrl }: Props) {
 
       if (!cancelled) {
         viewer.start();
+        configureSplatViewerOrbit(viewer);
       }
     }
 

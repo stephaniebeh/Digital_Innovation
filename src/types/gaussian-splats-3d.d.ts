@@ -120,7 +120,12 @@ declare module "@mkkellogg/gaussian-splats-3d" {
 
     camera?: Camera;
 
-    controls?: { enabled: boolean; target: import("three").Vector3; update: () => void };
+    controls?: {
+      enabled: boolean;
+      zoomToCursor: boolean;
+      target: import("three").Vector3;
+      update: () => void;
+    };
 
     threeScene?: Scene;
 

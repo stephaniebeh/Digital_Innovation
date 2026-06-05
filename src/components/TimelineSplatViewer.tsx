@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSplatAlignGizmo } from "@/hooks/useSplatAlignGizmo";
+import {
+  defaultSplatAlignment,
+  type AlignSceneVisibility,
+  type GizmoMode,
+  type SceneAlignmentState,
+  type SceneId,
+  type SceneTransform,
+} from "@/lib/scene-alignment";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import { timelineLabelAtPosition } from "@/lib/demo-scenes";
 import {
@@ -8,6 +17,7 @@ import {
   SPLAT_VIEWER_OPTIONS,
 } from "@/lib/splat-viewer-config";
 import {
+  applyAlignLayerVisibility,
   applyTimelineLayerBlend,
   autoFrameSplatViewer,
 } from "@/lib/splat-viewer-utils";
@@ -21,6 +31,7 @@ import {
   teardownSplatViewer,
   waitForHostLayout,
 } from "@/lib/viewer-host";
+import { configureSplatViewerOrbit } from "@/lib/viewer-controls";
 
 export type TimelineSplatLayer = {
   id: string;
@@ -33,6 +44,13 @@ type Props = {
   layers: TimelineSplatLayer[];
   timelinePos: number;
   overlayAll?: boolean;
+  alignMode?: boolean;
+  alignment?: SceneAlignmentState;
+  alignSceneVisibility?: AlignSceneVisibility;
+  editingScene?: SceneId;
+  gizmoMode?: GizmoMode;
+  onAlignTransformPatch?: (id: SceneId, transform: SceneTransform) => void;
+  onAlignDragStart?: () => void;
   onLoadError?: (message: string | null) => void;
   onEditorHandle?: (handle: SplatViewerHandle | null) => void;
 };
@@ -43,6 +61,13 @@ export default function TimelineSplatViewer({
   layers,
   timelinePos,
   overlayAll = false,
+  alignMode = false,
+  alignment,
+  alignSceneVisibility,
+  editingScene = "desk2",
+  gizmoMode = "translate",
+  onAlignTransformPatch,
+  onAlignDragStart,
   onLoadError,
   onEditorHandle,
 }: Props) {
@@ -62,6 +87,26 @@ export default function TimelineSplatViewer({
   onLoadErrorRef.current = onLoadError;
 
   const layerKey = layers.map((l) => `${l.id}:${l.url ?? "missing"}`).join("|");
+
+  const getViewerForScene = useCallback(
+    (id: SceneId): SplatViewer | null => {
+      const index = layers.findIndex((l) => l.id === id);
+      if (index < 0) return null;
+      return viewersRef.current[index] ?? null;
+    },
+    [layers, loadedCount]
+  );
+
+  useSplatAlignGizmo({
+    getViewerForScene,
+    alignment: alignment ?? defaultSplatAlignment(),
+    enabled: alignMode && !!onAlignTransformPatch,
+    editingScene,
+    gizmoMode,
+    onTransformPatch: onAlignTransformPatch ?? (() => {}),
+    onDragStart: onAlignDragStart ?? (() => {}),
+    viewerEpoch: loadedCount,
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -112,6 +157,7 @@ export default function TimelineSplatViewer({
       }
 
       viewer.start();
+      configureSplatViewerOrbit(viewer);
       if (savedEdit) {
         applySplatEditDeletes(viewer, savedEdit);
       }
@@ -208,8 +254,23 @@ export default function TimelineSplatViewer({
   useEffect(() => {
     if (loadPhase !== "ready") return;
     const hosts = layerHostsRef.current.filter(Boolean) as HTMLElement[];
-    applyTimelineLayerBlend(hosts, timelinePos, overlayAll);
-    setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
+    const layerIds = layers.map((l) => l.id);
+
+    if (alignMode && alignSceneVisibility) {
+      applyAlignLayerVisibility(hosts, layerIds, alignSceneVisibility);
+      const visible = layerIds.filter((id) => alignSceneVisibility[id as SceneId]);
+      setActiveLabel(
+        visible.length > 0 ? `Align · ${visible.join(" + ")}` : "Align · no scenes visible"
+      );
+    } else {
+      applyTimelineLayerBlend(hosts, timelinePos, overlayAll);
+      setActiveLabel(timelineLabelAtPosition(timelinePos, overlayAll));
+    }
+
+    if (alignMode) {
+      onEditorHandleRef.current?.(null);
+      return;
+    }
 
     const n = layers.length;
     if (n <= 1) return;
@@ -235,7 +296,15 @@ export default function TimelineSplatViewer({
     } else {
       onEditorHandleRef.current?.(null);
     }
-  }, [timelinePos, overlayAll, loadPhase, layers, loadedCount]);
+  }, [
+    timelinePos,
+    overlayAll,
+    alignMode,
+    alignSceneVisibility,
+    loadPhase,
+    layers,
+    loadedCount,
+  ]);
 
   return (
     <div

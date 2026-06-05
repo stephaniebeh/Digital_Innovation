@@ -29,6 +29,7 @@ export type ViewerOrbitControls = {
   enabled: boolean;
   enableDamping: boolean;
   dampingFactor: number;
+  zoomToCursor: boolean;
   mouseButtons: { LEFT: number; MIDDLE: number; RIGHT: number };
   target: import("three").Vector3;
   update: () => void;

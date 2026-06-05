@@ -102,6 +102,12 @@ export type SceneId = (typeof DESK_IDS)[number];
 
 export const SCENE_IDS: SceneId[] = [...DESK_IDS];
 
+export type AlignSceneVisibility = Record<SceneId, boolean>;
+
+export function defaultAlignSceneVisibility(): AlignSceneVisibility {
+  return { desk1: true, desk2: true, desk3: true };
+}
+
 export type GizmoMode = "translate" | "rotate" | "scale";
 
 export function sceneTransformFromObject(object: Object3D): SceneTransform {

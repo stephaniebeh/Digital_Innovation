@@ -3,6 +3,28 @@ import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js
 import type { SplatEditTool } from "@/lib/splat-editor/types";
 import type { ViewerOrbitControls } from "@/lib/splat-viewer-api";
 
+type SplatViewer = import("@mkkellogg/gaussian-splats-3d").Viewer;
+
+type SplatViewerControls = {
+  controls?: ViewerOrbitControls | null;
+  perspectiveControls?: ViewerOrbitControls | null;
+  orthographicControls?: ViewerOrbitControls | null;
+};
+
+function enableZoomToCursor(controls: ViewerOrbitControls | null | undefined): void {
+  if (!controls) return;
+  controls.zoomToCursor = true;
+  controls.update();
+}
+
+/** Scroll zooms toward the pointer (OrbitControls zoomToCursor). */
+export function configureSplatViewerOrbit(viewer: SplatViewer): void {
+  const v = viewer as SplatViewerControls;
+  enableZoomToCursor(v.perspectiveControls);
+  enableZoomToCursor(v.orthographicControls);
+  enableZoomToCursor(v.controls);
+}
+
 /** Orbit + pan setup similar to desktop 3D viewers (avoids pole lock at top/bottom). */
 export function configureExplorationControls(
   controls: OrbitControls,
@@ -31,6 +53,7 @@ export function configureExplorationControls(
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN,
   };
+  controls.zoomToCursor = true;
 }
 
 type SavedOrbitState = {
