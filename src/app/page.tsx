@@ -10,6 +10,7 @@ import {
   type InputHTMLAttributes,
 } from "react";
 import AlignmentEditor from "@/components/AlignmentEditor";
+import SplatEditorPanel from "@/components/SplatEditorPanel";
 import MemoryTimeline from "@/components/MemoryTimeline";
 import ReconstructionLoader from "@/components/ReconstructionLoader";
 import SkipToDemoButton from "@/components/SkipToDemoButton";
@@ -35,6 +36,7 @@ import {
   yearAtTimelinePosition,
 } from "@/lib/demo-scenes";
 import { imageFilesFromFileList } from "@/lib/image-file-picker";
+import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 
 const SceneViewer = dynamic(() => import("@/components/SceneViewer"), {
   ssr: false,
@@ -73,6 +75,10 @@ export default function Home() {
   const [timelinePos, setTimelinePos] = useState(0);
   const [hotspotOpen, setHotspotOpen] = useState(false);
   const [alignOpen, setAlignOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorHandle, setEditorHandle] = useState<SplatViewerHandle | null>(
+    null
+  );
   const [alignOverlay, setAlignOverlay] = useState(true);
   const [editingScene, setEditingScene] = useState<SceneId>("desk2");
   const [gizmoMode, setGizmoMode] = useState<GizmoMode>("rotate");
@@ -233,11 +239,14 @@ export default function Home() {
     if (viewerSource === "aholo") {
       return "Aholo reconstruction · drag to orbit · scroll to zoom";
     }
-    if (alignOpen) {
-      return "Align mode · sliders · auto-align uses COLMAP scene.ply · Ctrl+Z undo · overlay both";
+    if (editorOpen) {
+      return "Editor · drag to select · Backspace delete · right-drag orbit · save";
     }
-    return "Timeline · left = 2020 desk · right = 2026 desk · drag to orbit · scroll zoom";
-  }, [viewing, alignOpen, viewerSource]);
+    if (alignOpen) {
+      return "Align mode · sliders · auto-align uses COLMAP scene.ply · Ctrl+Z undo · overlay all";
+    }
+    return "Timeline · 2020 desk1 · 2023 desk3 · 2026 desk2 · drag to orbit · scroll zoom";
+  }, [viewing, alignOpen, editorOpen, viewerSource]);
 
   const showAlignTools = viewing && viewerSource === "demo";
 
@@ -401,11 +410,23 @@ export default function Home() {
                 viewerSource === "aholo" ? aholoSplatUrl : null
               }
               aholoModelFormat={aholoModelFormat}
+              aholoLabel={
+                aholoWorldId
+                  ? `Aholo · ${aholoWorldId.slice(0, 10)}…`
+                  : "Aholo reconstruction"
+              }
               sourceLabel={
                 viewerSource === "aholo" ? "Aholo reconstruction" : undefined
               }
               alignment={alignment}
               overlayBoth={showAlignTools && alignOpen && alignOverlay}
+              onEditorHandle={setEditorHandle}
+            />
+
+            <SplatEditorPanel
+              open={editorOpen}
+              onOpenChange={setEditorOpen}
+              handle={editorHandle}
             />
 
             {showAlignTools && (
@@ -449,10 +470,27 @@ export default function Home() {
               </p>
             </div>
             <div className="pointer-events-auto flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditorOpen((o) => !o);
+                  if (!editorOpen) setAlignOpen(false);
+                }}
+                className={`text-xs px-3 py-1.5 rounded-lg border backdrop-blur ${
+                  editorOpen
+                    ? "border-sky-400/40 text-sky-100 bg-sky-950/50"
+                    : "border-white/10 text-zinc-500 hover:text-white bg-black/40"
+                }`}
+              >
+                {editorOpen ? "Close editor" : "Edit scene"}
+              </button>
               {viewerSource === "demo" && (
                 <button
                   type="button"
-                  onClick={() => setAlignOpen((o) => !o)}
+                  onClick={() => {
+                    setAlignOpen((o) => !o);
+                    if (!alignOpen) setEditorOpen(false);
+                  }}
                   className="text-xs text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg border border-white/10 bg-black/40 backdrop-blur"
                 >
                   {alignOpen ? "Close align" : "Align scenes"}

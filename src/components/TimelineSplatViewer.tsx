@@ -11,6 +11,10 @@ import {
   applyTimelineLayerBlend,
   autoFrameSplatViewer,
 } from "@/lib/splat-viewer-utils";
+import { applySplatEdit, applySplatEditDeletes } from "@/lib/splat-editor/apply-edit";
+import { resolveSplatEdit } from "@/lib/splat-editor/load-edit";
+import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
+import { requestViewerRender } from "@/lib/splat-viewer-api";
 import {
   clearViewerHost,
   syncViewerCanvasSize,
@@ -30,6 +34,7 @@ type Props = {
   timelinePos: number;
   overlayAll?: boolean;
   onLoadError?: (message: string | null) => void;
+  onEditorHandle?: (handle: SplatViewerHandle | null) => void;
 };
 
 type SplatViewer = import("@mkkellogg/gaussian-splats-3d").Viewer;
@@ -39,6 +44,7 @@ export default function TimelineSplatViewer({
   timelinePos,
   overlayAll = false,
   onLoadError,
+  onEditorHandle,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const layerHostsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -46,6 +52,8 @@ export default function TimelineSplatViewer({
   const loadingRef = useRef<Set<number>>(new Set());
   const initGenRef = useRef(0);
   const onLoadErrorRef = useRef(onLoadError);
+  const onEditorHandleRef = useRef(onEditorHandle);
+  onEditorHandleRef.current = onEditorHandle;
   const [loadPhase, setLoadPhase] = useState<"loading" | "ready">("loading");
   const [loadedCount, setLoadedCount] = useState(0);
   const [statusLine, setStatusLine] = useState("Preparing viewer…");
@@ -68,6 +76,7 @@ export default function TimelineSplatViewer({
     setLoadPhase("loading");
     setStatusLine("Preparing viewer…");
     onLoadErrorRef.current?.(null);
+    onEditorHandleRef.current?.(null);
 
     for (const host of hosts) {
       if (host) clearViewerHost(host);
@@ -96,7 +105,16 @@ export default function TimelineSplatViewer({
         format: format === "spz" ? SceneFormat.Spz : SceneFormat.Ply,
       });
 
+      const sceneObj = viewer.getSplatScene(0);
+      const savedEdit = await resolveSplatEdit(url);
+      if (sceneObj && savedEdit) {
+        applySplatEdit(viewer, sceneObj, savedEdit);
+      }
+
       viewer.start();
+      if (savedEdit) {
+        applySplatEditDeletes(viewer, savedEdit);
+      }
       syncViewerCanvasSize(viewer, host);
       autoFrameSplatViewer(viewer, host);
       return viewer;
@@ -175,6 +193,7 @@ export default function TimelineSplatViewer({
 
     return () => {
       cancelled = true;
+      onEditorHandleRef.current?.(null);
       window.removeEventListener("resize", onResize);
       for (const viewer of viewersRef.current) {
         teardownSplatViewer(viewer);
@@ -199,11 +218,24 @@ export default function TimelineSplatViewer({
 
     const host = layerHostsRef.current[focusIndex];
     const viewer = viewersRef.current[focusIndex];
-    if (host && viewer) {
+    const layer = layers[focusIndex];
+
+    if (host && viewer && layer?.url && !layer.missing) {
       syncViewerCanvasSize(viewer, host);
       autoFrameSplatViewer(viewer, host);
+      onEditorHandleRef.current?.({
+        sceneKey: layer.url,
+        label: layer.id,
+        getSplatScene: () => viewer.getSplatScene(0),
+        getViewer: () => viewer,
+        getCamera: () => viewer.camera ?? null,
+        getHost: () => host,
+        requestRender: () => requestViewerRender(viewer),
+      });
+    } else {
+      onEditorHandleRef.current?.(null);
     }
-  }, [timelinePos, overlayAll, loadPhase, layers.length, loadedCount]);
+  }, [timelinePos, overlayAll, loadPhase, layers, loadedCount]);
 
   return (
     <div

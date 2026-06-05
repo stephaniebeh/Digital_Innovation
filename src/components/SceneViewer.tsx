@@ -12,6 +12,7 @@ import { splatFormatFromUrl } from "@/lib/splat-viewer-config";
 import type { SceneAlignmentState } from "@/lib/scene-alignment";
 import dynamic from "next/dynamic";
 import type { TimelineSplatLayer } from "@/components/TimelineSplatViewer";
+import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 
 const TimelineSplatViewer = dynamic(
   () => import("@/components/TimelineSplatViewer"),
@@ -31,6 +32,8 @@ type Props = {
   aholoSplatUrl?: string | null;
   aholoModelFormat?: AholoModelFormat;
   sourceLabel?: string;
+  onEditorHandle?: (handle: SplatViewerHandle | null) => void;
+  aholoLabel?: string;
 };
 
 export default function SceneViewer({
@@ -41,6 +44,8 @@ export default function SceneViewer({
   aholoSplatUrl = null,
   aholoModelFormat = "ply",
   sourceLabel,
+  onEditorHandle,
+  aholoLabel = "Aholo reconstruction",
 }: Props) {
   const [deskReady, setDeskReady] = useState<boolean | null>(null);
   const [deskLayers, setDeskLayers] = useState<TimelineSplatLayer[] | null>(
@@ -162,7 +167,9 @@ export default function SceneViewer({
           key={`${aholoSplatUrl}-${aholoModelFormat}`}
           modelUrl={aholoSplatUrl}
           format={aholoModelFormat}
+          label={aholoLabel}
           onLoadError={setViewerError}
+          onEditorHandle={onEditorHandle}
         />
       ) : deskLayers ? (
         <TimelineSplatViewer
@@ -171,6 +178,7 @@ export default function SceneViewer({
           timelinePos={timelinePos}
           overlayAll={overlayBoth}
           onLoadError={setViewerError}
+          onEditorHandle={onEditorHandle}
         />
       ) : null}
 

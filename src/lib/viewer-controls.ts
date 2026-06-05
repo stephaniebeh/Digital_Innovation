@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import type { SplatEditTool } from "@/lib/splat-editor/types";
+import type { ViewerOrbitControls } from "@/lib/splat-viewer-api";
 
 /** Orbit + pan setup similar to desktop 3D viewers (avoids pole lock at top/bottom). */
 export function configureExplorationControls(
@@ -29,6 +31,51 @@ export function configureExplorationControls(
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.PAN,
   };
+}
+
+type SavedOrbitState = {
+  enableDamping: boolean;
+  dampingFactor: number;
+  mouseButtons: { LEFT: number; MIDDLE: number; RIGHT: number };
+};
+
+/** Editor: no inertia drift; select tool reserves left-drag for box select. */
+export function applyEditorOrbitControls(
+  controls: ViewerOrbitControls,
+  tool: SplatEditTool
+): SavedOrbitState {
+  const saved: SavedOrbitState = {
+    enableDamping: controls.enableDamping,
+    dampingFactor: controls.dampingFactor,
+    mouseButtons: { ...controls.mouseButtons },
+  };
+
+  controls.enableDamping = false;
+
+  if (tool === "select") {
+    controls.mouseButtons = {
+      LEFT: -1,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE,
+    };
+  } else {
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    };
+  }
+
+  return saved;
+}
+
+export function restoreOrbitControls(
+  controls: ViewerOrbitControls,
+  saved: SavedOrbitState
+): void {
+  controls.enableDamping = saved.enableDamping;
+  controls.dampingFactor = saved.dampingFactor;
+  controls.mouseButtons = { ...saved.mouseButtons };
 }
 
 export function frameCameraOnObject(

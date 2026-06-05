@@ -16,6 +16,8 @@ export const SPLAT_VIEWER_OPTIONS = {
   sharedMemoryForWorkers: false,
   sphericalHarmonicsDegree: 2,
   integerBasedSort: true,
+  /** Required for move / rotate / scale in the scene editor */
+  dynamicScene: true,
   /** Sharper splats on trained 3DGS exports (matches Aholo-style viewing better) */
   antialiased: true,
   focalAdjustment: 1.0,
