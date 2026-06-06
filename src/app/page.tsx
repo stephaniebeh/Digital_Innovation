@@ -97,7 +97,7 @@ export default function Home() {
   } = useAlignmentHistory(defaultSplatAlignment());
 
   useEffect(() => {
-    if (viewerSource !== "demo") return;
+    if (viewerSource !== "demo" || phase !== "viewing") return;
     let cancelled = false;
     resolveAlignment().then((resolved) => {
       if (!cancelled) setAlignmentSilent(resolved);
@@ -105,7 +105,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [viewerSource, setAlignmentSilent]);
+  }, [viewerSource, phase, setAlignmentSilent]);
 
   const patchAlignTransform = useCallback(
     (id: SceneId, transform: SceneTransform) => {
@@ -143,7 +143,6 @@ export default function Home() {
     setLoadError(null);
     setLoadStatusLine(null);
     setTimelinePos(0);
-    setAlignmentSilent(defaultSplatAlignment());
     setPhase("viewing");
   }, [setAlignmentSilent]);
 

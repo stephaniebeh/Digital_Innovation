@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { syncViewerCameraFrom } from "@/lib/align-camera-sync";
 import { useAlignCameraSync } from "@/hooks/useAlignCameraSync";
+import { useApplySceneAlignment } from "@/hooks/useApplySceneAlignment";
 import { useTimelineCameraSync } from "@/hooks/useTimelineCameraSync";
 import { useSplatAlignGizmo } from "@/hooks/useSplatAlignGizmo";
 import {
+  applySceneTransform,
   defaultSplatAlignment,
   type AlignSceneVisibility,
   type GizmoMode,
@@ -107,9 +109,19 @@ export default function TimelineSplatViewer({
     [loadedCount]
   );
 
+  const alignmentState = alignment ?? defaultSplatAlignment();
+  const alignmentRef = useRef(alignmentState);
+  alignmentRef.current = alignmentState;
+
+  useApplySceneAlignment({
+    getViewerForScene,
+    alignment: alignmentState,
+    viewerEpoch: loadedCount,
+  });
+
   useSplatAlignGizmo({
     getViewerForScene,
-    alignment: alignment ?? defaultSplatAlignment(),
+    alignment: alignmentState,
     enabled: alignMode && !!onAlignTransformPatch,
     editingScene,
     gizmoMode,
@@ -213,6 +225,12 @@ export default function TimelineSplatViewer({
           syncViewerCameraFrom(anchor, viewer);
         } else {
           autoFrameSplatViewer(viewer, host);
+        }
+        const sceneObj = viewer.getSplatScene(0);
+        const sceneId = layer.id as SceneId;
+        if (sceneObj && sceneId in alignmentRef.current) {
+          applySceneTransform(sceneObj, alignmentRef.current[sceneId]);
+          requestViewerRender(viewer);
         }
         setLoadedCount((c) => c + 1);
 

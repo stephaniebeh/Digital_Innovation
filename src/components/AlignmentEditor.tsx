@@ -78,21 +78,33 @@ export default function AlignmentEditor({
   const [autoAlignError, setAutoAlignError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savePhase, setSavePhase] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
+
+  useEffect(() => {
+    if (savePhase === "saved") setSavePhase("idle");
+  }, [alignment]);
 
   async function saveChanges() {
     setSaveError(null);
-    setSaveStatus("Saving…");
+    setSaveStatus(null);
+    setSavePhase("saving");
     try {
       saveAlignmentLocal(alignment);
       await saveAlignmentToServer(alignment);
+      setSavePhase("saved");
       setSaveStatus("Saved to public/scenes/scene-alignment.json");
+      window.setTimeout(() => setSavePhase("idle"), 3000);
     } catch (e) {
       saveAlignmentLocal(alignment);
       downloadAlignmentJson(alignment);
+      setSavePhase("saved");
       setSaveStatus("Saved locally + downloaded JSON");
       setSaveError(
         e instanceof Error ? e.message : "Server save failed"
       );
+      window.setTimeout(() => setSavePhase("idle"), 3000);
     }
   }
 
@@ -100,6 +112,7 @@ export default function AlignmentEditor({
     onAlignmentChange(defaultSplatAlignment());
     setSaveStatus(null);
     setSaveError(null);
+    setSavePhase("idle");
   }
 
   async function runAutoAlign() {
@@ -334,10 +347,21 @@ export default function AlignmentEditor({
       <div className="p-2 border-t border-white/10 space-y-1.5">
         <button
           type="button"
+          disabled={savePhase === "saving"}
           onClick={() => void saveChanges()}
-          className="w-full py-2 rounded-lg bg-amber-500/90 text-black text-xs font-medium hover:bg-amber-400"
+          className={`w-full py-2 rounded-lg text-xs font-medium transition-colors duration-200 ${
+            savePhase === "saved"
+              ? "bg-emerald-500 text-black"
+              : savePhase === "saving"
+                ? "bg-amber-500/50 text-black/70 cursor-wait"
+                : "bg-amber-500/90 text-black hover:bg-amber-400"
+          }`}
         >
-          Save changes
+          {savePhase === "saving"
+            ? "Saving…"
+            : savePhase === "saved"
+              ? "Saved ✓"
+              : "Save changes"}
         </button>
         <button
           type="button"

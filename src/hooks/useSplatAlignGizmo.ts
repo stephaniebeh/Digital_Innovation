@@ -50,18 +50,6 @@ export function useSplatAlignGizmo({
   alignmentRef.current = alignment;
 
   useEffect(() => {
-    const ids: SceneId[] = ["desk1", "desk2", "desk3"];
-    for (const id of ids) {
-      const viewer = getViewerForScene(id);
-      if (!viewer) continue;
-      const sceneObj = viewer.getSplatScene(0);
-      if (!sceneObj) continue;
-      applySceneTransform(sceneObj, alignment[id]);
-      requestViewerRender(viewer);
-    }
-  }, [alignment, getViewerForScene, viewerEpoch]);
-
-  useEffect(() => {
     if (!enabled) {
       controlsRef.current?.dispose();
       controlsRef.current = null;

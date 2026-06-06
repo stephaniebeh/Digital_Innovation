@@ -44,6 +44,9 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
   const [edit, setEdit] = useState<SplatSceneEdit | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savePhase, setSavePhase] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
 
   useEffect(() => {
     if (!handle) {
@@ -73,12 +76,19 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
   }, [handle?.sceneKey, handle?.label]);
 
   const patchEdit = useCallback((patch: Partial<SplatSceneEdit>) => {
+    setSavePhase((phase) => (phase === "saved" ? "idle" : phase));
     setEdit((prev) =>
       prev
         ? { ...prev, ...patch, updatedAt: new Date().toISOString() }
         : prev
     );
   }, []);
+
+  useEffect(() => {
+    setSavePhase("idle");
+    setSaveStatus(null);
+    setSaveError(null);
+  }, [handle?.sceneKey]);
 
   useEffect(() => {
     if (tool !== "crop" || !handle || !edit || edit.crop) return;
@@ -160,20 +170,25 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
   const saveChanges = async () => {
     if (!edit || !handle) return;
     setSaveError(null);
-    setSaveStatus("Saving…");
+    setSaveStatus(null);
+    setSavePhase("saving");
     try {
       saveSplatEditLocal(edit);
       const deskId = deskIdFromSceneKey(handle.sceneKey);
       if (deskId) {
         await saveSplatEditToServer(deskId, edit);
+        setSavePhase("saved");
         setSaveStatus(`Saved to public/scenes/${deskId}/scene-edit.json`);
       } else {
         downloadSplatEditJson(edit);
+        setSavePhase("saved");
         setSaveStatus("Saved locally + downloaded JSON");
       }
+      window.setTimeout(() => setSavePhase("idle"), 3000);
     } catch (e) {
+      setSavePhase("error");
       setSaveError(e instanceof Error ? e.message : "Save failed");
-      setSaveStatus(null);
+      window.setTimeout(() => setSavePhase("idle"), 3000);
     }
   };
 
@@ -247,11 +262,25 @@ export default function SplatEditorPanel({ open, onOpenChange, handle }: Props) 
         <div className="p-2 border-t border-white/10 space-y-1.5">
           <button
             type="button"
-            disabled={!handle || !edit}
+            disabled={!handle || !edit || savePhase === "saving"}
             onClick={() => void saveChanges()}
-            className="w-full py-2 rounded-lg bg-sky-500/90 text-black text-xs font-medium hover:bg-sky-400 disabled:opacity-40"
+            className={`w-full py-2 rounded-lg text-xs font-medium transition-colors duration-200 disabled:opacity-40 ${
+              savePhase === "saved"
+                ? "bg-emerald-500 text-black"
+                : savePhase === "error"
+                  ? "bg-red-500/90 text-white"
+                  : savePhase === "saving"
+                    ? "bg-sky-500/50 text-black/70 cursor-wait"
+                    : "bg-sky-500/90 text-black hover:bg-sky-400"
+            }`}
           >
-            Save changes
+            {savePhase === "saving"
+              ? "Saving…"
+              : savePhase === "saved"
+                ? "Saved ✓"
+                : savePhase === "error"
+                  ? "Save failed"
+                  : "Save changes"}
           </button>
           <button
             type="button"
