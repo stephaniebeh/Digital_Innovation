@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  DEMO_SPLAT_SETUP_HINT,
-  resolveSplatUrl,
-  type TimelineMoment,
-} from "@/lib/demo-scenes";
+import { resolveSplatUrl, type TimelineMoment } from "@/lib/demo-scenes";
 import ViewerErrorPanel from "@/components/ViewerErrorPanel";
 import type { AholoModelFormat } from "@/lib/aholo/model-url";
 import { splatFormatFromUrl } from "@/lib/splat-viewer-config";
@@ -46,6 +42,7 @@ type Props = {
   sourceLabel?: string;
   onEditorHandle?: (handle: SplatViewerHandle | null) => void;
   aholoLabel?: string;
+  showSourceBadge?: boolean;
 };
 
 export default function SceneViewer({
@@ -63,7 +60,8 @@ export default function SceneViewer({
   aholoModelFormat = "ply",
   sourceLabel,
   onEditorHandle,
-  aholoLabel = "Aholo reconstruction",
+  aholoLabel = "Your memory",
+  showSourceBadge = false,
 }: Props) {
   const [deskReady, setDeskReady] = useState<boolean | null>(null);
   const [deskLayers, setDeskLayers] = useState<TimelineSplatLayer[] | null>(
@@ -116,7 +114,7 @@ export default function SceneViewer({
       if (readyCount === 0) {
         setDeskReady(false);
         setViewerError(
-          `No splat files found in public/scenes/. ${DEMO_SPLAT_SETUP_HINT}`
+          "This space isn't ready to view yet. Please try again later."
         );
         return;
       }
@@ -144,41 +142,36 @@ export default function SceneViewer({
   if (!aholoSplatUrl && deskReady === false && viewerError) {
     return (
       <ViewerErrorPanel
-        title="Splat scenes not ready"
+        title="Space unavailable"
         message={viewerError}
-        hint="Run: npm run bake-splats or npm run bake-splat:desk3"
       />
     );
   }
 
   const badgeLabel =
     sourceLabel ??
-    (aholoSplatUrl ? "Aholo reconstruction" : "Desk demo · pre-baked splats");
+    (aholoSplatUrl ? "Your memory" : "My Room");
 
   return (
     <>
-      <div className="absolute top-28 left-4 right-4 z-20 pointer-events-none space-y-1 max-w-md">
-        <span
-          className={`inline-block text-[10px] uppercase tracking-wider px-2 py-1 rounded-md border ${
-            aholoSplatUrl
-              ? "border-emerald-200/40 text-emerald-100/90 bg-emerald-950/40"
-              : "border-amber-200/40 text-amber-100/90 bg-amber-950/40"
-          }`}
-        >
-          {badgeLabel}
-        </span>
-        {missingDeskIds.length > 0 && (
-          <p className="text-[10px] text-amber-200/80 leading-snug max-w-sm">
-            Still waiting on: {missingDeskIds.join(", ")}.{" "}
-            {missingDeskIds.includes("desk3") && (
-              <>
-                Desk3 bake may still be running — or run{" "}
-                <code className="text-zinc-400">npm run bake-splat:desk3</code>
-              </>
-            )}
-          </p>
-        )}
-      </div>
+      {showSourceBadge && (
+        <div className="absolute top-28 left-4 right-4 z-20 pointer-events-none space-y-1 max-w-md">
+          <span
+            className={`inline-block text-[10px] uppercase tracking-wider px-2 py-1 rounded-md border ${
+              aholoSplatUrl
+                ? "border-emerald-200/40 text-emerald-100/90 bg-emerald-950/40"
+                : "border-amber-200/40 text-amber-100/90 bg-amber-950/40"
+            }`}
+          >
+            {badgeLabel}
+          </span>
+          {missingDeskIds.length > 0 && (
+            <p className="text-[10px] text-amber-200/80 leading-snug max-w-sm">
+              Part of this room is still loading…
+            </p>
+          )}
+        </div>
+      )}
 
       {aholoSplatUrl ? (
         <AholoSplatViewer

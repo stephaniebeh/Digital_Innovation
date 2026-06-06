@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Afterimage — A Wayback Machine for 3D",
+  title: "Afterimage — Places remembered in time",
   description:
-    "Explore how a place changes through collective memory. Upload photos, walk a spatial timeline.",
+    "Explore how cities and rooms change through shared memory. Walk the map, scrub through years, and preserve your own spaces.",
 };
 
 export default function RootLayout({

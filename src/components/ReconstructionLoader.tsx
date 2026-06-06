@@ -37,7 +37,7 @@ export default function ReconstructionLoader({
           {stage}
         </p>
         {statusLine && (
-          <p className="text-xs text-zinc-500 font-mono">{statusLine}</p>
+          <p className="text-xs text-zinc-500">{statusLine}</p>
         )}
         {error && (
           <p className="text-sm text-red-400/90 max-w-md leading-snug">{error}</p>

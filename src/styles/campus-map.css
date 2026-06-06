@@ -1,0 +1,23 @@
+/* Street tiles: CARTO dark — light roads on near-black land */
+.campus-map-host .leaflet-tile-pane {
+  background: #000 !important;
+}
+
+.leaflet-tile.campus-streets-tile {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.leaflet-tile.campus-satellite-tile {
+  filter: grayscale(100%) brightness(0.8) !important;
+  opacity: 0.7 !important;
+}
+
+.campus-map-host .leaflet-overlay-pane,
+.campus-map-host .leaflet-marker-pane,
+.campus-map-host .leaflet-shadow-pane,
+.campus-map-host .leaflet-tooltip-pane,
+.campus-map-host .leaflet-popup-pane {
+  filter: none !important;
+  opacity: 1 !important;
+}

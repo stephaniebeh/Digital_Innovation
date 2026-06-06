@@ -31,7 +31,7 @@ type Props = {
 export default function AholoSplatViewer({
   modelUrl,
   format,
-  label = "Aholo reconstruction",
+  label = "Your memory",
   onLoadError,
   onEditorHandle,
 }: Props) {

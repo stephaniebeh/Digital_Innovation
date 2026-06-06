@@ -94,7 +94,7 @@ export function timelineLabelAtPosition(
     return moments.map((m) => `${m.year}`).join(" · ");
   }
   const n = moments.length;
-  if (n <= 1) return `${moments[0].year} · ${moments[0].id}`;
+  if (n <= 1) return `${moments[0].year}`;
 
   const clamped = Math.max(0, Math.min(1, t));
   const pos = clamped * (n - 1);
@@ -106,7 +106,7 @@ export function timelineLabelAtPosition(
     return `${moments[iLow].year} → ${moments[iHigh].year}`;
   }
   const m = moments[momentIndexAtTimeline(t, n)];
-  return `${m.year} · ${m.id}`;
+  return `${m.year}`;
 }
 
 export async function assetExists(url: string): Promise<boolean> {

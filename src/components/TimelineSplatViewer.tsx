@@ -392,28 +392,19 @@ export default function TimelineSplatViewer({
           {layer.missing && (
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 pointer-events-none z-10">
               <p className="text-sm text-zinc-400 text-center px-6 max-w-sm">
-                <span className="text-amber-200/90">{layer.id}</span> splat not
-                on disk yet — run{" "}
-                <code className="text-zinc-300">npm run bake-splat:{layer.id}</code>{" "}
-                or wait for the bake to finish, then hard-refresh.
+                This moment isn&apos;t available yet. Try another point on the
+                timeline.
               </p>
             </div>
           )}
         </div>
       ))}
 
-      {loadPhase === "ready" && (
-        <p className="absolute bottom-32 left-4 z-10 text-[10px] uppercase tracking-wider text-amber-200/80 pointer-events-none">
-          {activeLabel}
-        </p>
-      )}
-
       {loadPhase === "loading" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none z-20">
           <p className="text-sm text-zinc-400">{statusLine}</p>
           <p className="text-[10px] text-zinc-600 max-w-xs text-center">
-            Loading {layers[0]?.id ?? "scene"} first — other desks load in the
-            background.
+            Opening your room…
           </p>
         </div>
       )}
