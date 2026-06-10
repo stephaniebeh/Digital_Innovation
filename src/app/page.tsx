@@ -8,7 +8,9 @@ import PrivateHubPage from "@/components/PrivateHubPage";
 import PrivateRoomViewer from "@/components/PrivateRoomViewer";
 import PublicMapPage from "@/components/PublicMapPage";
 import PublicPlacePlaceholder from "@/components/PublicPlacePlaceholder";
+import PublicPlaceViewer from "@/components/PublicPlaceViewer";
 import ReconstructionLoader from "@/components/ReconstructionLoader";
+import SplatEditorPanel from "@/components/SplatEditorPanel";
 import UploadPhotosPage from "@/components/UploadPhotosPage";
 import { useAlignmentHistory } from "@/hooks/useAlignmentHistory";
 import {
@@ -23,7 +25,19 @@ import {
   placeById,
   type PublicPlace,
 } from "@/lib/public-places";
-import { defaultSplatAlignment } from "@/lib/scene-alignment";
+import {
+  placeHas3DViewer,
+  timelineForPlace,
+} from "@/lib/public-place-scenes";
+import {
+  defaultAlignSceneVisibility,
+  defaultSplatAlignment,
+  type AlignSceneVisibility,
+  type GizmoMode,
+  type SceneId,
+  type SceneTransform,
+} from "@/lib/scene-alignment";
+import type { SplatViewerHandle } from "@/lib/splat-viewer-api";
 
 const SceneViewer = dynamic(() => import("@/components/SceneViewer"), {
   ssr: false,
@@ -75,6 +89,7 @@ export default function Home() {
   const [publicTimelinePos, setPublicTimelinePos] = useState(0.66);
   const [privateTimelinePos, setPrivateTimelinePos] = useState(0);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [placeTimelinePos, setPlaceTimelinePos] = useState(0);
 
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [loadStage, setLoadStage] = useState(0);
@@ -85,11 +100,25 @@ export default function Home() {
   const [aholoModelFormat, setAholoModelFormat] =
     useState<AholoModelFormat>("ply");
   const [hotspotOpen, setHotspotOpen] = useState(false);
+  const [alignOpen, setAlignOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorHandle, setEditorHandle] = useState<SplatViewerHandle | null>(
+    null
+  );
+  const [alignSceneVisibility, setAlignSceneVisibility] =
+    useState<AlignSceneVisibility>(defaultAlignSceneVisibility);
+  const [editingScene, setEditingScene] = useState<SceneId>("desk2");
+  const [gizmoMode, setGizmoMode] = useState<GizmoMode>("translate");
   const pollAbortRef = useRef(false);
 
-  const { alignment, setAlignmentSilent } = useAlignmentHistory(
-    defaultSplatAlignment()
-  );
+  const {
+    alignment,
+    changeAlignment,
+    setAlignmentSilent,
+    beginGizmoDrag,
+    undo: undoAlignment,
+    canUndo,
+  } = useAlignmentHistory(defaultSplatAlignment());
 
   useEffect(() => {
     if (phase !== "private-room") return;
@@ -101,6 +130,17 @@ export default function Home() {
       cancelled = true;
     };
   }, [phase, setAlignmentSilent]);
+
+  const patchAlignTransform = useCallback(
+    (id: SceneId, transform: SceneTransform) => {
+      setAlignmentSilent((prev) => ({ ...prev, [id]: transform }));
+    },
+    [setAlignmentSilent]
+  );
+
+  const setSceneVisible = useCallback((id: SceneId, visible: boolean) => {
+    setAlignSceneVisibility((prev) => ({ ...prev, [id]: visible }));
+  }, []);
 
   const fileCount = selectedImages.length;
   const hasEnoughImages = fileCount >= MIN_RECONSTRUCTION_IMAGES;
@@ -131,6 +171,9 @@ export default function Home() {
     setLoadError(null);
     setPrivateTimelinePos(0);
     setHotspotOpen(false);
+    setAlignOpen(false);
+    setEditorOpen(false);
+    setEditorHandle(null);
     setPhase("private-room");
   }, []);
 
@@ -141,6 +184,9 @@ export default function Home() {
   const selectedPlace: PublicPlace | undefined = selectedPlaceId
     ? placeById(selectedPlaceId)
     : undefined;
+  const selectedPlaceTimeline = selectedPlace
+    ? timelineForPlace(selectedPlace.id)
+    : null;
 
   const startRealReconstruction = useCallback(async () => {
     if (!selectedImages.length) {
@@ -157,6 +203,8 @@ export default function Home() {
     pollAbortRef.current = false;
     setLoadError(null);
     setLoadStatusLine(null);
+    setEditorOpen(false);
+    setEditorHandle(null);
     setPhase("loading");
     setLoadStage(0);
     setLoadProgress(0.05);
@@ -217,6 +265,8 @@ export default function Home() {
       : "public";
 
   const reconstructionBack = useCallback(() => {
+    setEditorOpen(false);
+    setEditorHandle(null);
     setPhase(uploadOrigin === "private" ? "private-hub" : "public-map");
   }, [uploadOrigin]);
 
@@ -235,6 +285,7 @@ export default function Home() {
           onTimelineChange={setPublicTimelinePos}
           onSelectPlace={(place) => {
             setSelectedPlaceId(place.id);
+            setPlaceTimelinePos(0);
             setPhase("public-place");
           }}
           onBack={goLanding}
@@ -242,10 +293,21 @@ export default function Home() {
       )}
 
       {phase === "public-place" && selectedPlace && (
-        <PublicPlacePlaceholder
-          place={selectedPlace}
-          onBack={() => setPhase("public-map")}
-        />
+        placeHas3DViewer(selectedPlace.id) && selectedPlaceTimeline ? (
+          <PublicPlaceViewer
+            place={selectedPlace}
+            timelineMoments={selectedPlaceTimeline.moments}
+            timelineYears={selectedPlaceTimeline.years}
+            timelinePos={placeTimelinePos}
+            onTimelineChange={setPlaceTimelinePos}
+            onBack={() => setPhase("public-map")}
+          />
+        ) : (
+          <PublicPlacePlaceholder
+            place={selectedPlace}
+            onBack={() => setPhase("public-map")}
+          />
+        )
       )}
 
       {phase === "private-hub" && (
@@ -305,19 +367,23 @@ export default function Home() {
           timelinePos={privateTimelinePos}
           onTimelineChange={setPrivateTimelinePos}
           alignment={alignment}
-          alignOpen={false}
-          editorOpen={false}
-          alignSceneVisibility={{
-            desk1: true,
-            desk2: true,
-            desk3: true,
-          }}
-          editingScene="desk2"
-          gizmoMode="translate"
-          editorHandle={null}
-          onAlignTransformPatch={() => {}}
-          onAlignDragStart={() => {}}
-          onEditorHandle={() => {}}
+          onAlignmentChange={changeAlignment}
+          alignOpen={alignOpen}
+          onAlignOpenChange={setAlignOpen}
+          editorOpen={editorOpen}
+          onEditorOpenChange={setEditorOpen}
+          alignSceneVisibility={alignSceneVisibility}
+          onSceneVisibilityChange={setSceneVisible}
+          editingScene={editingScene}
+          onEditingSceneChange={setEditingScene}
+          gizmoMode={gizmoMode}
+          onGizmoModeChange={setGizmoMode}
+          editorHandle={editorHandle}
+          onAlignTransformPatch={patchAlignTransform}
+          onAlignDragStart={beginGizmoDrag}
+          onEditorHandle={setEditorHandle}
+          canUndo={canUndo}
+          onUndo={undoAlignment}
           onBack={() => setPhase("private-hub")}
           hotspotOpen={hotspotOpen}
           onHotspotToggle={() => setHotspotOpen((o) => !o)}
@@ -332,40 +398,51 @@ export default function Home() {
               timelinePos={0}
               aholoSplatUrl={aholoSplatUrl}
               aholoModelFormat={aholoModelFormat}
+              aholoLabel="Your memory"
               alignment={alignment}
               overlayBoth={false}
-              alignMode={false}
-              alignSceneVisibility={{
-                desk1: true,
-                desk2: true,
-                desk3: true,
-              }}
-              editingScene="desk2"
-              gizmoMode="translate"
-              onAlignTransformPatch={() => {}}
-              onAlignDragStart={() => {}}
-              onEditorHandle={() => {}}
+              onEditorHandle={setEditorHandle}
+            />
+            <SplatEditorPanel
+              open={editorOpen}
+              onOpenChange={setEditorOpen}
+              handle={editorHandle}
             />
           </div>
           <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-20">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex flex-col gap-2">
               <button
                 type="button"
                 onClick={reconstructionBack}
-                className="text-xs px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-zinc-400 hover:text-white backdrop-blur"
+                className="text-xs px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-zinc-400 hover:text-white backdrop-blur w-fit"
               >
                 ← Back
               </button>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">
+                  Your memory
+                </p>
+                <p className="text-3xl font-light text-amber-50">Now</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">
-                Your memory
-              </p>
-              <p className="text-3xl font-light text-amber-50">Now</p>
+            <div className="pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setEditorOpen((open) => !open)}
+                className={`text-xs px-3 py-1.5 rounded-lg border backdrop-blur ${
+                  editorOpen
+                    ? "border-sky-400/40 text-sky-100 bg-sky-950/50"
+                    : "border-white/10 text-zinc-500 hover:text-white bg-black/40"
+                }`}
+              >
+                {editorOpen ? "Close editor" : "Edit scene"}
+              </button>
             </div>
           </div>
-          <p className="absolute top-20 left-1/2 -translate-x-1/2 text-[11px] text-zinc-500 z-20 pointer-events-none">
-            Drag to look around · scroll to zoom
+          <p className="absolute top-28 left-1/2 -translate-x-1/2 text-[11px] text-zinc-500 z-20 pointer-events-none text-center max-w-md px-4">
+            {editorOpen
+              ? "Editor · drag to select · Backspace delete · right-drag orbit · save"
+              : "Drag to look around · scroll to zoom"}
           </p>
         </main>
       )}

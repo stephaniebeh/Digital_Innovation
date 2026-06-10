@@ -1,6 +1,6 @@
 /**
- * Bake public/scenes/{desk}/scene-splat.{spz|ply} from desk photo folders via Aholo API.
- * Usage: npx tsx scripts/bake-desk-splats.ts [desk1|desk2|all] [--images N]
+ * Bake public/scenes/{sceneId}/scene-splat.{spz|ply} from photo folders via Aholo API.
+ * Usage: npx tsx scripts/bake-desk-splats.ts [desk1|dininghall1|all|dininghall] [--images N]
  */
 import { existsSync, readdirSync, readFileSync, unlinkSync } from "fs";
 import { extname, join } from "path";
@@ -40,14 +40,27 @@ function loadEnvLocal(): void {
   }
 }
 
+const ALL_DESKS = ["desk1", "desk3", "desk2"] as const;
+const ALL_DINING = ["dininghall1", "dininghall2"] as const;
+const ALL_SCENES = [...ALL_DESKS, ...ALL_DINING] as const;
+type SceneId = (typeof ALL_SCENES)[number];
+
+const SCENE_ALIASES: Record<string, SceneId[]> = {
+  all: [...ALL_DESKS],
+  dininghall: [...ALL_DINING],
+  "dining-hall": [...ALL_DINING],
+};
+
 function parseArgs(): {
-  desks: ("desk1" | "desk2" | "desk3")[];
+  scenes: SceneId[];
   imageLimit: number | null;
+  taskQuality: "low" | "normal" | "high";
 } {
   const argv = process.argv.slice(2);
-  let deskArg = "all";
-  /** null = every image in desk1 images / desk2 images (or dense fallback) */
+  const sceneArgs: string[] = [];
+  /** null = every image in the scene folder */
   let imageLimit: number | null = null;
+  let taskQuality: "low" | "normal" | "high" = "high";
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--images" && argv[i + 1]) {
       const n = Number(argv[++i]);
@@ -57,31 +70,48 @@ function parseArgs(): {
         );
       }
       imageLimit = n;
+    } else if (argv[i] === "--quality" && argv[i + 1]) {
+      const q = argv[++i] as "low" | "normal" | "high";
+      if (!["low", "normal", "high"].includes(q)) {
+        throw new Error("--quality must be low, normal, or high");
+      }
+      taskQuality = q;
     } else if (!argv[i].startsWith("-")) {
-      deskArg = argv[i];
+      sceneArgs.push(argv[i]);
     }
   }
-  const ALL_DESKS = ["desk1", "desk3", "desk2"] as const;
-  type DeskId = (typeof ALL_DESKS)[number];
-  const isDesk = (d: string): d is DeskId =>
-    ALL_DESKS.includes(d as DeskId);
 
-  const desks: DeskId[] =
-    deskArg === "all" ? [...ALL_DESKS] : isDesk(deskArg) ? [deskArg] : [];
-  if (desks.length === 0) {
+  const isScene = (d: string): d is SceneId =>
+    ALL_SCENES.includes(d as SceneId);
+
+  const requested = sceneArgs.length ? sceneArgs : ["all"];
+  const scenes: SceneId[] = [];
+  for (const arg of requested) {
+    const alias = SCENE_ALIASES[arg];
+    if (alias) {
+      scenes.push(...alias);
+      continue;
+    }
+    if (isScene(arg)) {
+      scenes.push(arg);
+      continue;
+    }
     throw new Error(
-      "Usage: npx tsx scripts/bake-desk-splats.ts [desk1|desk3|desk2|all] [--images N]\n" +
-        "  Default: all photos from deskN/deskN images folders.\n" +
+      "Usage: npx tsx scripts/bake-desk-splats.ts [desk1|dininghall1|all|dininghall] [--images N]\n" +
+        "  Default (no args): desk1, desk3, desk2.\n" +
+        "  dininghall = dininghall1 + dininghall2 from images/ folders.\n" +
         "  --images N = optional cap with even sampling (quick tests only)."
     );
   }
-  return { desks, imageLimit };
+
+  return { scenes: [...new Set(scenes)], imageLimit, taskQuality };
 }
 
-function resolveImageDir(desk: string): string {
+function resolveImageDir(sceneId: string): string {
   const candidates = [
-    join(process.cwd(), desk, `${desk} images`),
-    join(process.cwd(), desk, "dense", "0", "images"),
+    join(process.cwd(), "images", sceneId),
+    join(process.cwd(), sceneId, `${sceneId} images`),
+    join(process.cwd(), sceneId, "dense", "0", "images"),
   ];
   for (const dir of candidates) {
     if (existsSync(dir)) {
@@ -95,13 +125,13 @@ function resolveImageDir(desk: string): string {
     }
   }
   throw new Error(
-    `No image folder with ${MIN_RECONSTRUCTION_IMAGES}+ photos for ${desk}. ` +
-      `Expected "${desk}/${desk} images" or "${desk}/dense/0/images".`
+    `No image folder with ${MIN_RECONSTRUCTION_IMAGES}+ photos for ${sceneId}. ` +
+      `Expected "images/${sceneId}", "${sceneId}/${sceneId} images", or "${sceneId}/dense/0/images".`
   );
 }
 
-function listDeskImages(desk: string, imageLimit: number | null): string[] {
-  const dir = resolveImageDir(desk);
+function listSceneImages(sceneId: string, imageLimit: number | null): string[] {
+  const dir = resolveImageDir(sceneId);
   const all = readdirSync(dir)
     .filter((f) => IMAGE_EXT.has(extname(f).toLowerCase()))
     .sort();
@@ -128,15 +158,16 @@ function listDeskImages(desk: string, imageLimit: number | null): string[] {
   return picked;
 }
 
-async function bakeDesk(
-  desk: "desk1" | "desk2" | "desk3",
-  imageLimit: number | null
+async function bakeScene(
+  sceneId: SceneId,
+  imageLimit: number | null,
+  taskQuality: "low" | "normal" | "high"
 ): Promise<void> {
-  const images = listDeskImages(desk, imageLimit);
-  const sceneDir = join(process.cwd(), "public", "scenes", desk);
+  const images = listSceneImages(sceneId, imageLimit);
+  const sceneDir = join(process.cwd(), "public", "scenes", sceneId);
 
   console.log(
-    `\n=== ${desk}: uploading ${images.length} images (taskQuality=high) to Aholo ===`
+    `\n=== ${sceneId}: uploading ${images.length} images (taskQuality=${taskQuality}) to Aholo ===`
   );
 
   const urls: string[] = [];
@@ -149,11 +180,11 @@ async function bakeDesk(
     console.log(`  uploaded ${i + 1}/${images.length}`);
   }
 
-  console.log(`Creating reconstruction for ${desk}...`);
+  console.log(`Creating reconstruction for ${sceneId}...`);
   const { worldId } = await createReconstruction({
-    name: `afterimage-${desk}`,
+    name: `afterimage-${sceneId}`,
     scene: "space",
-    taskQuality: "high",
+    taskQuality,
     cover: urls[0],
     resources: urls.map((url) => ({ url, type: "image" as const })),
   });
@@ -178,12 +209,15 @@ async function bakeDesk(
       break;
     }
     if (world.status === "FAILED" || world.status === "CANCELED") {
-      throw new Error(`Reconstruction ${world.status} for ${desk}`);
+      throw new Error(
+        `Reconstruction ${world.status} for ${sceneId} (worldId: ${worldId}). ` +
+          `Try fewer photos (--images 40), --quality low, or a steadier photo set with more overlap.`
+      );
     }
   }
 
   if (!remoteUrl) {
-    throw new Error(`Timed out waiting for ${desk} reconstruction`);
+    throw new Error(`Timed out waiting for ${sceneId} reconstruction`);
   }
 
   const ext = format === "spz" ? "spz" : "ply";
@@ -214,13 +248,13 @@ async function bakeDesk(
 
 async function main(): Promise<void> {
   loadEnvLocal();
-  const { desks, imageLimit } = parseArgs();
+  const { scenes, imageLimit, taskQuality } = parseArgs();
 
-  for (const desk of desks) {
-    await bakeDesk(desk, imageLimit);
+  for (const sceneId of scenes) {
+    await bakeScene(sceneId, imageLimit, taskQuality);
   }
 
-  console.log("\nDone. Reload the desk demo in the browser.");
+  console.log("\nDone. Reload the viewer in the browser.");
 }
 
 main().catch((err) => {

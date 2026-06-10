@@ -11,6 +11,7 @@ import {
   yearAtPublicTimeline,
   type PublicPlace,
 } from "@/lib/public-places";
+import { CAMPUS_TIMELINE_STATS } from "@/lib/timeline-stats";
 
 const CampusMapLeaflet = dynamic(() => import("@/components/CampusMapLeaflet"), {
   ssr: false,
@@ -90,6 +91,7 @@ export default function PublicMapPage({
           years={PUBLIC_MAP_YEARS}
           startLabel="Earlier"
           endLabel="Later"
+          statsKeyframes={CAMPUS_TIMELINE_STATS}
         />
       </div>
     </main>

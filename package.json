@@ -11,6 +11,9 @@
     "bake-splat:desk1": "tsx scripts/bake-desk-splats.ts desk1",
     "bake-splat:desk2": "tsx scripts/bake-desk-splats.ts desk2",
     "bake-splat:desk3": "tsx scripts/bake-desk-splats.ts desk3",
+    "bake-splat:dininghall1": "tsx scripts/bake-desk-splats.ts dininghall1",
+    "bake-splat:dininghall2": "tsx scripts/bake-desk-splats.ts dininghall2",
+    "bake-splats:dininghall": "tsx scripts/bake-desk-splats.ts dininghall",
     "save-desk-splat": "tsx scripts/save-desk-splat-from-world.ts",
     "wait-save-desk3": "tsx scripts/wait-and-save-desk-splat.ts desk3 3FO4K4VFO9XK"
   },

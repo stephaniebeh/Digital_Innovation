@@ -73,8 +73,8 @@ export const PUBLIC_PLACES: PublicPlace[] = [
     lat: 30.3061,
     lng: 120.0902,
     photos: [
-      { src: "/scenes/desk2/photo-01.jpg", caption: "Lunch hour" },
-      { src: "/scenes/desk2/photo-02.jpg", caption: "Study break" },
+      { src: "/scenes/dininghall1/photo-01.jpg", caption: "Lunch hour" },
+      { src: "/scenes/dininghall2/photo-01.jpg", caption: "Evening crowd" },
     ],
     heatKeyframes: [
       { t: 0, intensity: 0.5, offsetEastM: 0, offsetNorthM: 0 },
