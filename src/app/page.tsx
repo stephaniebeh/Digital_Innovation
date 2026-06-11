@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import FloatingAddButton from "@/components/FloatingAddButton";
+import IntroPage from "@/components/IntroPage";
 import LandingPage from "@/components/LandingPage";
 import PrivateHubPage from "@/components/PrivateHubPage";
 import PrivateRoomViewer from "@/components/PrivateRoomViewer";
@@ -42,6 +43,7 @@ const SceneViewer = dynamic(() => import("@/components/SceneViewer"), {
 });
 
 type Phase =
+  | "intro"
   | "landing"
   | "public-map"
   | "public-place"
@@ -54,7 +56,7 @@ type Phase =
 type UploadOrigin = "public" | "private";
 
 export default function Home() {
-  const [phase, setPhase] = useState<Phase>("landing");
+  const [phase, setPhase] = useState<Phase>("intro");
   const [uploadOrigin, setUploadOrigin] = useState<UploadOrigin>("public");
   const [publicTimelinePos, setPublicTimelinePos] = useState(0.66);
   const [privateTimelinePos, setPrivateTimelinePos] = useState(0);
@@ -301,6 +303,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
+      {phase === "intro" && (
+        <IntroPage onStart={() => setPhase("landing")} />
+      )}
+
       {phase === "landing" && (
         <LandingPage
           onPublic={() => setPhase("public-map")}
