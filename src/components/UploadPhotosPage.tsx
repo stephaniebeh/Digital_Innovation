@@ -7,6 +7,7 @@ type Props = {
   minPhotos: number;
   hasEnough: boolean;
   error: string | null;
+  notice?: string | null;
   onPickFiles: (list: FileList | null) => void;
   onStart: () => void;
   onBack: () => void;
@@ -17,6 +18,7 @@ export default function UploadPhotosPage({
   minPhotos,
   hasEnough,
   error,
+  notice,
   onPickFiles,
   onStart,
   onBack,
@@ -75,6 +77,12 @@ export default function UploadPhotosPage({
             : `Select at least ${minPhotos} photos from different angles`}
         </p>
 
+        {notice && (
+          <p className="text-xs text-emerald-300/90 bg-emerald-950/30 border border-emerald-200/20 rounded-lg px-3 py-2">
+            {notice}
+          </p>
+        )}
+
         {error && <p className="text-xs text-red-400/90">{error}</p>}
 
         <button
@@ -87,7 +95,8 @@ export default function UploadPhotosPage({
         </button>
 
         <p className="text-[11px] text-zinc-600 text-center">
-          Processing may take a few minutes. Keep this tab open.
+          You can queue multiple scans — progress stays in the corner while you
+          browse.
         </p>
       </section>
 

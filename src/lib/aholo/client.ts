@@ -8,12 +8,19 @@ const POLL_TIMEOUT_MS = 45 * 60 * 1000;
 export type WorldPollResult = {
   worldId: string;
   status: string;
+  createTime?: number;
+  updateTime?: number;
   modelUrl: string | null;
   plyPath?: string;
   spzPath?: string;
   lodMetaPath?: string;
   modelFormat?: string;
 };
+
+export type WorldStatusUpdate = Pick<
+  WorldPollResult,
+  "status" | "createTime" | "updateTime"
+>;
 
 import {
   pickAholoModelUrl,
@@ -30,6 +37,7 @@ export async function startReconstruction(
     name?: string;
     scene?: "model" | "space";
     taskQuality?: "low" | "normal" | "high";
+    onUploadProgress?: (ratio: number) => void;
   }
 ): Promise<{ worldId: string; imageCount: number }> {
   const form = new FormData();
@@ -41,22 +49,47 @@ export async function startReconstruction(
   form.append("scene", options?.scene ?? "space");
   form.append("taskQuality", options?.taskQuality ?? "normal");
 
-  const res = await fetch("/api/reconstruct", { method: "POST", body: form });
-  const data = await res.json();
+  const data = await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/reconstruct");
+    xhr.responseType = "json";
 
-  if (!res.ok) {
-    const msg =
-      (data.details as string) ||
-      (data.error as string) ||
-      `Reconstruction request failed (${res.status})`;
-    throw new Error(msg);
-  }
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return;
+      options?.onUploadProgress?.(event.loaded / event.total);
+    });
+
+    xhr.addEventListener("load", () => {
+      const body =
+        xhr.response && typeof xhr.response === "object"
+          ? (xhr.response as Record<string, unknown>)
+          : {};
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body);
+        return;
+      }
+      const msg =
+        (body.details as string) ||
+        (body.error as string) ||
+        `Reconstruction request failed (${xhr.status})`;
+      reject(new Error(msg));
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("Reconstruction request failed (network error)"));
+    });
+
+    xhr.send(form);
+  });
 
   if (!data.worldId) {
     throw new Error("Server did not return a worldId");
   }
 
-  return { worldId: data.worldId as string, imageCount: data.imageCount as number };
+  return {
+    worldId: data.worldId as string,
+    imageCount: data.imageCount as number,
+  };
 }
 
 export async function fetchWorldStatus(
@@ -76,6 +109,8 @@ export async function fetchWorldStatus(
   return {
     worldId: data.worldId as string,
     status: data.status as string,
+    createTime: data.createTime as number | undefined,
+    updateTime: data.updateTime as number | undefined,
     modelUrl: (data.modelUrl as string) ?? null,
     plyPath: data.plyPath as string | undefined,
     spzPath: data.spzPath as string | undefined,
@@ -88,7 +123,7 @@ export async function fetchWorldStatus(
 export async function openExistingWorld(
   worldId: string,
   options?: {
-    onStatus?: (status: string) => void;
+    onStatus?: (update: WorldStatusUpdate) => void;
     shouldAbort?: () => boolean;
   }
 ): Promise<{
@@ -110,7 +145,7 @@ export async function openExistingWorld(
 export async function pollWorldUntilDone(
   worldId: string,
   options?: {
-    onStatus?: (status: string) => void;
+    onStatus?: (update: WorldStatusUpdate) => void;
     shouldAbort?: () => boolean;
   }
 ): Promise<WorldPollResult> {
@@ -122,7 +157,11 @@ export async function pollWorldUntilDone(
     }
 
     const result = await fetchWorldStatus(worldId);
-    options?.onStatus?.(result.status);
+    options?.onStatus?.({
+      status: result.status,
+      createTime: result.createTime,
+      updateTime: result.updateTime,
+    });
 
     if (result.status === "SUCCEEDED") {
       try {
@@ -133,7 +172,9 @@ export async function pollWorldUntilDone(
         });
         return result;
       } catch {
-        options?.onStatus?.("SUCCEEDED — waiting for ply/spz assets");
+        options?.onStatus?.({
+          status: "SUCCEEDED — waiting for ply/spz assets",
+        });
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         continue;
       }

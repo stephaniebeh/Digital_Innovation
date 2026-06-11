@@ -2,13 +2,11 @@
 
 type Props = {
   onMyRoom: () => void;
-  onAddSpace: () => void;
   onBack: () => void;
 };
 
 export default function PrivateHubPage({
   onMyRoom,
-  onAddSpace,
   onBack,
 }: Props) {
   return (
@@ -19,7 +17,7 @@ export default function PrivateHubPage({
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Your spaces</h1>
         <p className="text-zinc-500 text-sm">
-          Open a saved room or start capturing a new one.
+          Open a saved room, or use + to capture a new one.
         </p>
       </header>
 
@@ -32,17 +30,6 @@ export default function PrivateHubPage({
           <h2 className="text-lg font-medium text-white mb-1">My Room</h2>
           <p className="text-sm text-zinc-500">
             Step inside your room and watch how it changed across the years.
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={onAddSpace}
-          className="w-full rounded-2xl border border-dashed border-white/15 bg-zinc-950/40 p-6 text-left hover:border-amber-200/30 hover:bg-zinc-900/60 transition-all"
-        >
-          <h2 className="text-lg font-medium text-white mb-1">Add Space</h2>
-          <p className="text-sm text-zinc-500">
-            Upload photos of a room or corner you want to remember.
           </p>
         </button>
       </div>

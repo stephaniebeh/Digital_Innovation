@@ -1,12 +1,14 @@
 "use client";
 
 import { RECONSTRUCTION_STAGES } from "@/lib/demo-scenes";
+import { formatJobProgress } from "@/lib/reconstruction-jobs";
 
 type Props = {
   stageIndex: number;
   progress: number;
   statusLine?: string | null;
   error?: string | null;
+  onContinueBrowsing?: () => void;
 };
 
 export default function ReconstructionLoader({
@@ -14,6 +16,7 @@ export default function ReconstructionLoader({
   progress,
   statusLine,
   error,
+  onContinueBrowsing,
 }: Props) {
   const stage =
     RECONSTRUCTION_STAGES[stageIndex] ?? RECONSTRUCTION_STAGES.at(-1);
@@ -45,7 +48,7 @@ export default function ReconstructionLoader({
         <div className="h-1 w-48 mx-auto rounded-full bg-zinc-800 overflow-hidden">
           <div
             className="h-full bg-amber-200/60 transition-all duration-300"
-            style={{ width: `${progress * 100}%` }}
+            style={{ width: `${formatJobProgress(progress)}%` }}
           />
         </div>
       </div>
@@ -63,6 +66,16 @@ export default function ReconstructionLoader({
           </li>
         ))}
       </ul>
+
+      {onContinueBrowsing && !error && (
+        <button
+          type="button"
+          onClick={onContinueBrowsing}
+          className="mt-2 text-xs px-4 py-2.5 rounded-lg border border-white/15 bg-black/40 text-zinc-300 hover:text-white hover:border-white/25 backdrop-blur transition-colors"
+        >
+          Continue browsing while this runs
+        </button>
+      )}
     </div>
   );
 }
